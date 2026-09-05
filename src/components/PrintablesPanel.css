@@ -1,0 +1,38 @@
+.printables-panel {
+  display: grid;
+  align-content: start;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.printables-panel__head h1 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.02em;
+  color: #123247;
+}
+
+.printables-panel__empty {
+  padding: 1.25rem 1rem;
+  border: 1px dashed rgba(169, 196, 212, 0.95);
+  border-radius: 12px;
+  background: #fff;
+  text-align: center;
+}
+
+.printables-panel__empty-title {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-heading);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: #123247;
+}
+
+.printables-panel__empty p {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  line-height: 1.4;
+}

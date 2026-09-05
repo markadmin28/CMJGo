@@ -1,0 +1,140 @@
+.actual-inventory {
+  display: grid;
+  align-content: start;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.actual-inventory-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.actual-inventory-head-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+
+.actual-inventory-search-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 32px;
+}
+
+.actual-inventory-month {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  color: var(--fg-muted);
+}
+
+.actual-inventory-month input {
+  height: 32px;
+  min-width: 150px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0 0.5rem;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--fg);
+  background: #fff;
+}
+
+.actual-inventory-search-modal {
+  width: min(760px, calc(100vw - 2rem));
+  max-height: min(80vh, 720px);
+}
+
+.actual-inventory-search-body {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0 1rem 1rem;
+}
+
+.actual-inventory-search-filter {
+  display: grid;
+  gap: 0.12rem;
+  max-width: 280px;
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  color: var(--fg-muted);
+}
+
+.actual-inventory-search-filter input {
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0 0.55rem;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--fg);
+  background: #fff;
+}
+
+.actual-inventory-search-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.actual-inventory-search-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.actual-inventory-search-table th,
+.actual-inventory-search-table td {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.actual-inventory-search-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8f8f8;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.actual-inventory-search-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.actual-inventory-search-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.actual-inventory-delete-btn {
+  color: #b42318;
+  border-color: #fecdca;
+}
+
+.actual-inventory-current-tag {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.08rem 0.35rem;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #175cd3;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  vertical-align: middle;
+}

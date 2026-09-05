@@ -1,0 +1,59 @@
+.printables-chooser {
+  width: min(100%, 420px);
+}
+
+.printables-chooser__options {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.85rem 0.9rem 0.95rem;
+}
+
+.printables-chooser__option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(169, 196, 212, 0.95);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 4px 12px rgba(22, 50, 74, 0.06);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.printables-chooser__option:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 10px 20px rgba(22, 50, 74, 0.1);
+}
+
+.printables-chooser__option:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.printables-chooser__option--fulls:hover {
+  border-color: #a5b4fc;
+}
+
+.printables-chooser__option--empties:hover {
+  border-color: #fdba74;
+}
+
+.printables-chooser__option--liquidation:hover {
+  border-color: #f9a8d4;
+}
+
+.printables-chooser__option-label {
+  font-family: var(--font-heading);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: #123247;
+  letter-spacing: -0.01em;
+}

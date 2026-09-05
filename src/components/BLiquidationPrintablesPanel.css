@@ -1,0 +1,281 @@
+.b-liquidation-filters {
+  gap: 0.55rem 0.75rem;
+}
+
+.b-liquidation-filters--empties-inline {
+  align-items: stretch;
+}
+
+.b-liquidation-empties-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.b-liquidation-empties-row__legend {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  color: var(--fg-muted);
+}
+
+.b-liquidation-empties-row__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.b-liquidation-empties-row__checks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.b-liquidation-empties-row .fulls-printables-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.b-liquidation-empties-row .fulls-printables-date span {
+  margin: 0;
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.b-liquidation-empties-row .fulls-printables-date input {
+  width: auto;
+  min-width: 7.25rem;
+  max-width: 7.25rem;
+  padding: 0 0.35rem;
+}
+
+.b-liquidation-dates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.55rem 0.75rem;
+}
+
+@media print {
+  .b-liquidation-print-tables {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+    margin-top: 0.45rem;
+  }
+
+  .b-liquidation-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8pt;
+    line-height: 1.25;
+  }
+
+  .b-liquidation-print-table td {
+    border: 1px solid #c4c9d0;
+    padding: 3px 5px;
+    vertical-align: middle;
+    color: #111;
+    background: #fff;
+  }
+
+  .b-liquidation-print-table td:first-child {
+    width: 68%;
+    font-weight: 500;
+  }
+
+  .b-liquidation-print-table td:last-child {
+    width: 32%;
+    text-align: center;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .b-liquidation-print-table tr {
+    height: 1.45em;
+  }
+
+  .b-liquidation-print-row--empty td {
+    border: none;
+    background: transparent;
+  }
+
+  .b-liquidation-print-row--no-outline td {
+    border: none;
+    background: transparent;
+  }
+
+  .b-liq-print-fulls {
+    color: #dc2626 !important;
+    font-weight: 700;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .b-liquidation-print-table td.b-liq-print-val--green {
+    color: #16a34a !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .b-liquidation-print-table td.b-liq-print-val--blue {
+    color: #2563eb !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .b-liquidation-print-table td.b-liq-print-val--red {
+    color: #dc2626 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .b-liquidation-print-summary {
+    margin: 0.28rem 0 0;
+    font-size: 8pt;
+    font-weight: 600;
+    color: #111;
+    line-height: 1.2;
+  }
+
+  .b-liquidation-print-summary__dates {
+    color: #000 !important;
+    font-weight: 700;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .b-liquidation-breakdown {
+    margin-top: 0.7rem;
+    page-break-inside: avoid;
+  }
+
+  .b-liquidation-breakdown__header {
+    text-align: center;
+    margin: 0 0 0.35rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid #111;
+  }
+
+  .b-liquidation-breakdown__header h2 {
+    margin: 0;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #111;
+  }
+
+  .b-liquidation-breakdown__header p {
+    margin: 0.12rem 0 0;
+    font-size: 8.5pt;
+    font-weight: 600;
+    color: #000;
+  }
+
+  .b-liquidation-breakdown__tables {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+  }
+
+  .b-liquidation-breakdown-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8pt;
+    line-height: 1.25;
+  }
+
+  .b-liquidation-breakdown-table th,
+  .b-liquidation-breakdown-table td {
+    border: 1px solid #9ca3af;
+    padding: 3px 5px;
+    vertical-align: middle;
+    background: #fff;
+  }
+
+  .b-liquidation-breakdown-table th {
+    font-style: italic;
+    font-weight: 700;
+    background: #f3f4f6;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .b-liquidation-breakdown-table th:nth-child(1) {
+    text-align: left;
+    width: 76%;
+  }
+
+  .b-liquidation-breakdown-table th:nth-child(2) {
+    text-align: center;
+    width: 24%;
+  }
+
+  .b-liquidation-breakdown-table td:nth-child(1) {
+    width: 28%;
+  }
+
+  .b-liquidation-breakdown-table td:nth-child(2) {
+    text-align: left;
+    width: 48%;
+  }
+
+  .b-liquidation-breakdown-table td:nth-child(3) {
+    text-align: center;
+    width: 24%;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .b-liquidation-breakdown-table td.b-liquidation-subcat-cell {
+    font-weight: 700;
+    background: #fff;
+    vertical-align: top !important;
+    text-align: right !important;
+    padding-top: 3px;
+    padding-right: 5px;
+  }
+
+  .b-liquidation-breakdown-table td.b-liq-print-val--red {
+    color: #dc2626 !important;
+    font-weight: 700;
+    text-align: center;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .b-liquidation-breakdown-table--no-subcat td:nth-child(1) {
+    text-align: left;
+    width: 76%;
+  }
+
+  .b-liquidation-breakdown-table--no-subcat td:nth-child(2) {
+    text-align: center;
+    width: 24%;
+  }
+
+  .b-liquidation-breakdown__total {
+    margin: 0.35rem 0 0;
+    padding-top: 0.2rem;
+    border-top: 2px solid #111;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #dc2626 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

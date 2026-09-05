@@ -1,0 +1,259 @@
+.ft-print-batch {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 6mm;
+  }
+
+  .ft-print-batch {
+    display: block !important;
+  }
+
+  .ft-print-batch .factory-tx-print-sheet {
+    display: block !important;
+  }
+
+  .ft-print-batch .factory-tx-print-sheet--printables {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ft-print-batch .factory-tx-print-sheet--printables:not(:last-child) {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .ft-print-batch .factory-tx-print-sheet--followed {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-sheet__brand {
+    margin-bottom: 0.25rem;
+    padding-bottom: 0.15rem;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-sheet__company {
+    font-size: 12pt;
+    line-height: 1.1;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-sheet__branch,
+  .factory-tx-print-sheet--printables .factory-tx-print-sheet__title {
+    line-height: 1.1;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-sheet__title {
+    margin-top: 0.12rem;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-table {
+    font-size: 10pt;
+    line-height: 1.1;
+    table-layout: fixed;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-printables-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+  }
+  .factory-tx-print-sheet--printables .factory-tx-print-meta--printables {
+    flex: 0 0 30%;
+    max-width: 30%;
+    margin: 0;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-meta--printables p {
+    margin: 0.04rem 0;
+    white-space: nowrap;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-printables-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-table thead th {
+    white-space: nowrap;
+    font-size: 9.5pt;
+    padding: 0.08rem 0.28rem;
+    line-height: 1.15;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-table .is-num {
+    white-space: nowrap;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-table th:nth-child(1),
+  .factory-tx-print-sheet--printables .factory-tx-print-table td:nth-child(1) {
+    text-align: left;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-table .is-total td {
+    font-weight: 700;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-col--pallets {
+    width: 19%;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-col--cases {
+    width: 13%;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-col--sku {
+    width: 30%;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-col--price {
+    width: 19%;
+  }
+
+  .factory-tx-print-sheet--printables .factory-tx-print-col--amount {
+    width: 19%;
+  }
+
+  .factory-tx-printables-summary-table {
+    margin-top: 0.3rem;
+  }
+
+  .factory-tx-printables-summary-table th,
+  .factory-tx-printables-summary-table td {
+    border: none;
+    padding: 0.05rem 0.16rem;
+    vertical-align: middle;
+  }
+
+  .factory-tx-printables-summary-table .is-label {
+    text-align: right;
+    font-weight: 700;
+    color: #111;
+  }
+
+  .factory-tx-printables-summary-table .is-label.is-blue {
+    color: #111;
+  }
+
+  .factory-tx-printables-summary-table .is-label.is-red {
+    color: #111;
+  }
+
+  .factory-tx-printables-summary-table .is-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+
+  .factory-tx-printables-summary-table .is-summary-total-line .is-summary-value {
+    border-top: 1px solid #111;
+    color: #dc2626;
+  }
+
+  .factory-tx-printables-summary-table .is-summary-net-line .is-summary-value {
+    border-bottom: 2px solid #111;
+    color: #1d4ed8;
+  }
+
+  .factory-tx-printables-summary-table .is-summary-net td {
+    padding-top: 0.12rem;
+    font-size: 11.5pt;
+  }
+
+  .factory-tx-printables-summary-table .is-summary-net .is-label,
+  .factory-tx-printables-summary-table .is-summary-net .is-num {
+    color: #1d4ed8;
+    font-weight: 700;
+  }
+
+  .factory-tx-print-cheque--printables {
+    margin: 0.2rem 0 0;
+    padding: 0;
+    text-align: right;
+    font-size: 11pt;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .factory-tx-print-cheque--printables strong {
+    color: #15803d;
+    font-weight: 700;
+  }
+
+  .factory-tx-print-overbal--printables {
+    margin: 0.15rem 0 0;
+    padding: 0;
+    text-align: right;
+    font-size: 10.5pt;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .factory-tx-print-overbal--printables.is-over {
+    color: #1d4ed8;
+  }
+
+  .factory-tx-print-overbal--printables.is-short {
+    color: #dc2626;
+  }
+
+  .factory-tx-printables-running {
+    width: 100%;
+    margin-top: 0.45rem;
+    border-collapse: collapse;
+    table-layout: auto;
+    font-size: 10pt;
+    line-height: 1.15;
+  }
+
+  .factory-tx-printables-running th,
+  .factory-tx-printables-running td {
+    border: 1.5px solid #dc2626;
+    padding: 0.18rem 0.45rem;
+    text-align: center;
+    vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .factory-tx-printables-running thead th {
+    color: #dc2626;
+    font-weight: 700;
+    background: #fff;
+    line-height: 1.15;
+    white-space: nowrap;
+    font-size: 9.5pt;
+    padding: 0.22rem 0.55rem;
+  }
+
+  .factory-tx-printables-running tbody td {
+    color: #111;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+
+  .factory-tx-print-sheet__end {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.45rem;
+    padding-top: 0.1rem;
+  }
+
+  .factory-tx-print-sheet__end-line {
+    flex: 1;
+    height: 0;
+    border-top: 1.5px dashed #9ca3af;
+  }
+
+  .factory-tx-print-sheet__end-label {
+    flex-shrink: 0;
+    font-size: 6.5pt;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9ca3af;
+  }
+}
