@@ -1,0 +1,152 @@
+.bo-print-sheet {
+  display: none;
+}
+
+@media print {
+  .bo-print-sheet {
+    display: block !important;
+    color: #111;
+    font-family: Arial, Helvetica, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .bo-print-sheet__brand {
+    text-align: center;
+    margin: 0 0 0.45rem;
+    padding: 0 0 0.3rem;
+    border-bottom: 1.5px solid #111;
+  }
+
+  .bo-print-sheet__company {
+    margin: 0;
+    font-size: 13pt;
+    font-weight: 700;
+    line-height: 1.15;
+  }
+
+  .bo-print-sheet__branch {
+    margin: 0.05rem 0 0;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.15;
+  }
+
+  .bo-print-sheet__title {
+    margin: 0.2rem 0 0;
+    font-size: 11pt;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    line-height: 1.15;
+  }
+
+  .bo-print-sheet__meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 0.4rem;
+  }
+
+  .bo-print-sheet__meta p {
+    margin: 0.02rem 0;
+    font-size: 10.5pt;
+    line-height: 1.25;
+  }
+
+  .bo-print-sheet__meta span {
+    font-weight: 700;
+  }
+
+  .bo-print-sheet__table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 10.5pt;
+    line-height: 1.15;
+  }
+
+  .bo-print-sheet__table--discounts {
+    margin-top: 0.55rem;
+  }
+
+  .bo-print-sheet__table th,
+  .bo-print-sheet__table td {
+    border: 1px solid #111;
+    padding: 0.05rem 0.18rem;
+    vertical-align: middle;
+  }
+
+  .bo-print-sheet__table thead th {
+    background: #e5e7eb;
+    font-size: 10pt;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .bo-print-sheet__table th:nth-child(1),
+  .bo-print-sheet__table th:nth-child(2),
+  .bo-print-sheet__table td:nth-child(1),
+  .bo-print-sheet__table td:nth-child(2) {
+    width: 12%;
+  }
+
+  .bo-print-sheet__table th:nth-child(3),
+  .bo-print-sheet__table td:nth-child(3) {
+    width: 40%;
+  }
+
+  .bo-print-sheet__table th:nth-child(4),
+  .bo-print-sheet__table th:nth-child(5),
+  .bo-print-sheet__table td:nth-child(4),
+  .bo-print-sheet__table td:nth-child(5) {
+    width: 18%;
+  }
+
+  .bo-print-sheet__table .is-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .bo-print-sheet__table .is-sku {
+    text-align: left;
+  }
+
+  .bo-print-sheet__table .is-label {
+    text-align: right;
+    font-weight: 700;
+  }
+
+  .bo-print-sheet__table .is-blue {
+    color: #1d4ed8;
+    font-weight: 700;
+  }
+
+  .bo-print-sheet__table .is-red {
+    color: #dc2626;
+    font-weight: 700;
+  }
+
+  .bo-print-sheet__table .is-section td {
+    font-weight: 700;
+    text-align: left;
+    background: #f3f4f6;
+  }
+
+  .bo-print-sheet__table .is-section td:first-child {
+    background: transparent;
+  }
+
+  .bo-print-sheet__table .is-total td {
+    font-weight: 700;
+  }
+
+  .bo-print-sheet__payables {
+    margin: 0.55rem 0 0;
+    text-align: right;
+    font-size: 12pt;
+    font-weight: 700;
+    color: #1d4ed8;
+  }
+}

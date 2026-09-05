@@ -13,6 +13,7 @@ export type DashboardCardId =
   | 'fth'
   | 'fullGoods'
   | 'empties'
+  | 'bo'
 
 export const DAVAO_DASHBOARD_CARDS: readonly DashboardCardId[] = [
   'sku',
@@ -26,6 +27,7 @@ export const DAVAO_DASHBOARD_CARDS: readonly DashboardCardId[] = [
   'fth',
   'fullGoods',
   'empties',
+  'bo',
 ] as const
 
 /** Print/report modules Maragusan users get when they open the Davao workspace. */

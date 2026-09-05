@@ -32,6 +32,10 @@
   justify-content: center;
 }
 
+.login-logo .cmj-logo__mark {
+  filter: drop-shadow(0 8px 20px rgba(0, 40, 80, 0.18));
+}
+
 .login-panel {
   width: 100%;
   padding: 1.25rem;

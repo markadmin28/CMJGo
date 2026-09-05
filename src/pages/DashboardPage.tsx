@@ -20,6 +20,7 @@ import { factoryTransactionTitle } from '../lib/factoryTransaction'
 import { SkuPrintablesPanel } from '../components/SkuPrintablesPanel'
 import { BLiquidationPrintablesPanel } from '../components/BLiquidationPrintablesPanel'
 import { FullsPrintablesPanel } from '../components/FullsPrintablesPanel'
+import { BoBadOrderPanel } from '../components/BoBadOrderPanel'
 import { useAuth } from '../contexts/AuthContext'
 import {
   canAccessDashboardCard,
@@ -41,6 +42,7 @@ import inventoryModuleIcon from '../assets/module-icons/inventory-module-icon.pn
 import fthModuleIcon from '../assets/module-icons/fth-module-icon.png'
 import fullGoodsModuleIcon from '../assets/module-icons/full-goods-module-icon.png'
 import emptiesModuleIcon from '../assets/module-icons/empties-module-icon.png'
+import boModuleIcon from '../assets/module-icons/bo-module-icon.png'
 import nabunturanBranchIcon from '../assets/module-icons/nabunturan-branch-icon.png'
 import davaoBranchIcon from '../assets/module-icons/davao-branch-icon.png'
 import './DashboardPage.css'
@@ -56,6 +58,7 @@ type DashModule =
   | 'fth'
   | 'fullGoods'
   | 'empties'
+  | 'bo'
   | PrintableOption
 
 type HomeCard = {
@@ -179,6 +182,13 @@ export function DashboardPage() {
       onClick: () => setActiveModule('empties'),
     },
     {
+      id: 'bo',
+      className: 'dash-module-btn--bo',
+      label: 'BO (Bad Order)',
+      icon: boModuleIcon,
+      onClick: () => setActiveModule('bo'),
+    },
+    {
       id: 'factory',
       className: 'dash-module-btn--factory',
       label: 'Fractory Transaction',
@@ -230,7 +240,7 @@ export function DashboardPage() {
   ]
 
   const visibleHomeCards = homeCards.filter((card) => allowedCards.includes(card.id))
-  const skuStackIds = new Set<DashboardCardId>(['sku', 'fth', 'fullGoods', 'empties'])
+  const skuStackIds = new Set<DashboardCardId>(['sku', 'fth', 'fullGoods', 'empties', 'bo'])
   const isCompactModules = needsWorkspacePicker && workspaceBranch === 'Davao'
   const skuStackCards = visibleHomeCards.filter((card) => skuStackIds.has(card.id))
   const otherHomeCards = visibleHomeCards.filter((card) => !skuStackIds.has(card.id))
@@ -254,6 +264,7 @@ export function DashboardPage() {
 
   return (
     <div className="dash-shell">
+      <div className="dash-bg" aria-hidden="true" />
       <div className="dash-glow" aria-hidden="true" />
 
       <header className="dash-header">
@@ -264,7 +275,7 @@ export function DashboardPage() {
             onClick={goHome}
             aria-label="Go to home"
           >
-            <CmjGoLogo size="sm" />
+            <CmjGoLogo size="sm" showWordmark className="dash-logo" />
           </button>
           <div className="dash-header-actions">
             <div className="dash-user-chip" title={user?.email ?? undefined}>
@@ -415,6 +426,15 @@ export function DashboardPage() {
                 Empties In/Out
               </button>
             ) : null}
+            {canAccess('bo') ? (
+              <button
+                type="button"
+                className={activeModule === 'bo' ? 'dash-module-tab is-active' : 'dash-module-tab'}
+                onClick={() => setActiveModule('bo')}
+              >
+                BO (Bad Order)
+              </button>
+            ) : null}
             {isActualInventoryModule && canAccess('actualInventory') ? (
               <button
                 type="button"
@@ -546,6 +566,7 @@ export function DashboardPage() {
         {activeModule === 'empties' && canAccess('empties') ? (
           <FullGoodsPanel mode="empties" />
         ) : null}
+        {activeModule === 'bo' && canAccess('bo') ? <BoBadOrderPanel /> : null}
         {activeModule === 'fullsPrintables' && canAccess('fullsPrintables') ? (
           <FullsPrintablesPanel mode="fulls" />
         ) : null}
@@ -582,6 +603,13 @@ export function DashboardPage() {
       {isMasterAdmin ? (
         <AddUserModal open={addUserOpen} onClose={() => setAddUserOpen(false)} />
       ) : null}
+
+      <footer className="dash-footer">
+        <p>
+          CMJgo Web Application · Powered by CMJ-MIS · Developed by Mark Morales · All rights
+          reserved 2026
+        </p>
+      </footer>
     </div>
   )
 }

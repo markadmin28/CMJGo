@@ -27,12 +27,33 @@
   height: 32px;
 }
 
+.bo-acc-inventory-head {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.bo-acc-inventory-head__left {
+  display: grid;
+  gap: 0.45rem;
+  justify-items: start;
+}
+
+.bo-acc-inventory-head h1 {
+  margin: 0;
+}
+
 .actual-inventory-month {
   display: inline-flex;
   flex-direction: column;
   gap: 0.12rem;
   font-size: 10px;
   font-weight: var(--font-weight-medium);
+  color: var(--fg-muted);
+}
+
+.bo-acc-month-note {
+  margin: 0 0 0.35rem;
+  font-size: 12px;
   color: var(--fg-muted);
 }
 

@@ -6,7 +6,11 @@
 
 .cmj-logo__mark {
   flex-shrink: 0;
-  border-radius: 8px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 50%;
+  background: transparent;
 }
 
 .cmj-logo__word {
@@ -34,4 +38,19 @@
 
 .cmj-logo--lg .cmj-logo__word {
   font-size: var(--text-xl);
+}
+
+.cmj-logo--sm .cmj-logo__mark {
+  width: 36px;
+  height: 36px;
+}
+
+.cmj-logo--md .cmj-logo__mark {
+  width: 88px;
+  height: 88px;
+}
+
+.cmj-logo--lg .cmj-logo__mark {
+  width: 140px;
+  height: 140px;
 }

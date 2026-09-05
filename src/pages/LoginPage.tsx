@@ -35,7 +35,7 @@ export function LoginPage() {
       <div className="login-glow" aria-hidden="true" />
 
       <div className="login-frame">
-        <CmjGoLogo size="md" className="login-logo" />
+        <CmjGoLogo size="lg" className="login-logo" />
 
         <main className="login-panel">
           <header className="login-brand">
