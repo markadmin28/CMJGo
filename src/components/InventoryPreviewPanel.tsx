@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { listCatalogTree } from '../lib/catalog'
+import type { UserBranch } from '../lib/branches'
 import { listFullGoodsMovements } from '../lib/fullGoods'
 import {
   buildActualBeginningLookup,
@@ -7,19 +8,29 @@ import {
   previousMonthStart,
 } from '../lib/actualInventory'
 import {
+  customerTxToPrintableMovement,
+  printableCategoryToCustomerCompany,
+} from '../lib/customerTxAsMovement'
+import { listCustomerTransactionsWithItemsInRange } from '../lib/customerTxSave'
+import { routeSummaryToPrintableMovement } from '../lib/routeSummaryAsMovement'
+import { listRouteSummariesWithItemsInRange } from '../lib/routeSummarySave'
+import {
   buildInventoryPreviewRows,
   formatInventoryValue,
   inventoryDateBounds,
+  inventoryEmptiesCategoryLabel,
   inventoryPreviewTitle,
   inventoryPrintReportPeriod,
   splitInventoryPreviewRows,
   type InventoryCategory,
   type InventoryMetricRow,
 } from '../lib/inventoryPreview'
+import type { FullGoodsMovement } from '../types/fullGoods'
 import './InventoryPreviewPanel.css'
 
 type InventoryPreviewPanelProps = {
   category: InventoryCategory
+  branch?: UserBranch | null
 }
 
 function todayIsoDate() {
@@ -225,11 +236,18 @@ function InventoryTable({
   )
 }
 
-export function InventoryPreviewPanel({ category }: InventoryPreviewPanelProps) {
+export function InventoryPreviewPanel({
+  category,
+  branch = 'Davao',
+}: InventoryPreviewPanelProps) {
+  const catalogBranch = branch ?? 'Davao'
+  const mergeNabunturanTx = catalogBranch === 'Nabunturan'
+  const customerCompany = printableCategoryToCustomerCompany(category)
+  const emptiesCategoryLabel = inventoryEmptiesCategoryLabel(category)
   const [dateFrom, setDateFrom] = useState(todayIsoDate())
   const [dateTo, setDateTo] = useState(todayIsoDate())
   const [appliedRange, setAppliedRange] = useState({ dateFrom: todayIsoDate(), dateTo: todayIsoDate() })
-  const [movements, setMovements] = useState<Awaited<ReturnType<typeof listFullGoodsMovements>>['data']>([])
+  const [movements, setMovements] = useState<FullGoodsMovement[]>([])
   const [catalog, setCatalog] = useState<Awaited<ReturnType<typeof listCatalogTree>>['data']>([])
   const [actualBeginning, setActualBeginning] = useState<ReturnType<
     typeof buildActualBeginningLookup
@@ -245,14 +263,76 @@ export function InventoryPreviewPanel({ category }: InventoryPreviewPanelProps) 
     async function load() {
       setLoading(true)
       setHasViewed(false)
+
       const [movementsResult, catalogResult] = await Promise.all([
-        listFullGoodsMovements(),
-        listCatalogTree(),
+        listFullGoodsMovements(catalogBranch),
+        listCatalogTree(catalogBranch, { forTransactions: true }),
       ])
       if (cancelled) return
-      setMovements(movementsResult.data)
+
+      // Strict branch filter — never mix Davao rows into Nabunturan inventory.
+      let nextMovements = (movementsResult.data ?? []).filter(
+        (row) => (row.branch || 'Davao') === catalogBranch,
+      )
+
+      if (mergeNabunturanTx && customerCompany) {
+        const [customerResult, routeResult] = await Promise.all([
+          listCustomerTransactionsWithItemsInRange(
+            catalogBranch,
+            '2020-01-01',
+            todayIsoDate(),
+            customerCompany,
+          ),
+          listRouteSummariesWithItemsInRange(catalogBranch, '2020-01-01', todayIsoDate()),
+        ])
+        if (cancelled) return
+
+        const txMovements: FullGoodsMovement[] = []
+        for (const { transaction, items } of customerResult.data) {
+          txMovements.push(
+            customerTxToPrintableMovement(transaction, items, 'fulls', category),
+            customerTxToPrintableMovement(transaction, items, 'empties', emptiesCategoryLabel),
+          )
+        }
+        for (const { summary, items } of routeResult.data) {
+          const fulls = routeSummaryToPrintableMovement(
+            summary,
+            items,
+            'fulls',
+            category,
+            customerCompany,
+          )
+          const empties = routeSummaryToPrintableMovement(
+            summary,
+            items,
+            'empties',
+            emptiesCategoryLabel,
+            customerCompany,
+          )
+          if (fulls) txMovements.push(fulls)
+          if (empties) txMovements.push(empties)
+        }
+
+        const byId = new Map<string, FullGoodsMovement>()
+        for (const row of nextMovements) byId.set(row.id, row)
+        for (const row of txMovements) {
+          if ((row.branch || catalogBranch) !== catalogBranch) continue
+          byId.set(row.id, row)
+        }
+        nextMovements = [...byId.values()]
+
+        setError(
+          movementsResult.error ??
+            catalogResult.error ??
+            customerResult.error ??
+            routeResult.error,
+        )
+      } else {
+        setError(movementsResult.error ?? catalogResult.error)
+      }
+
+      setMovements(nextMovements)
       setCatalog(catalogResult.data)
-      setError(movementsResult.error ?? catalogResult.error)
       setLoading(false)
     }
 
@@ -260,13 +340,16 @@ export function InventoryPreviewPanel({ category }: InventoryPreviewPanelProps) 
     return () => {
       cancelled = true
     }
-  }, [category])
+  }, [category, catalogBranch, mergeNabunturanTx, customerCompany, emptiesCategoryLabel])
 
   useEffect(() => {
     let cancelled = false
 
     async function loadActuals() {
-      const result = await listActualInventoriesForMonth(previousMonthStart(appliedRange.dateFrom))
+      const result = await listActualInventoriesForMonth(
+        previousMonthStart(appliedRange.dateFrom),
+        catalogBranch,
+      )
       if (cancelled) return
       if (result.missingTable) {
         setActualBeginning(null)
@@ -281,7 +364,7 @@ export function InventoryPreviewPanel({ category }: InventoryPreviewPanelProps) 
     return () => {
       cancelled = true
     }
-  }, [category, appliedRange.dateFrom])
+  }, [category, appliedRange.dateFrom, catalogBranch])
 
   useEffect(() => {
     function onAfterPrint() {
@@ -326,7 +409,9 @@ export function InventoryPreviewPanel({ category }: InventoryPreviewPanelProps) 
         <header className="inventory-preview-header no-print">
           <div className="inventory-preview-header__title">
             <h1>{panelTitle}</h1>
-            <span className="inventory-preview-header__subtitle">{category} inventory report</span>
+            <span className="inventory-preview-header__subtitle">
+              {catalogBranch} · {category} inventory report
+            </span>
           </div>
 
           <div className="inventory-preview-filters">

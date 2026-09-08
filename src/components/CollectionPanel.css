@@ -1,0 +1,14 @@
+.collection-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+}
+
+.collection-panel__branch {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--fg-muted);
+}

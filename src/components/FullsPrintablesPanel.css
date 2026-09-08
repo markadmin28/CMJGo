@@ -264,16 +264,25 @@
     display: block;
   }
 
+  .fulls-print-batch {
+    display: block;
+  }
+
   .fulls-print-sheet {
+    display: block;
     color: #111;
     font-family: 'Segoe UI', Arial, sans-serif;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .fulls-print-sheet--followed {
     margin-bottom: 0.85rem;
     padding-bottom: 0.55rem;
+    break-after: auto;
+    page-break-after: auto;
   }
 
   .fulls-print-sheet__header {
@@ -411,6 +420,18 @@
     width: 26%;
     text-align: right;
     font-variant-numeric: tabular-nums;
+  }
+
+  .fulls-print-items--with-unit th:nth-child(2),
+  .fulls-print-items--with-unit td:nth-child(2) {
+    width: 14%;
+    text-align: center;
+    font-variant-numeric: normal;
+  }
+
+  .fulls-print-items--with-unit th:last-child,
+  .fulls-print-items--with-unit td:last-child {
+    width: 22%;
   }
 
   .fulls-print-items--sku th:nth-child(1),

@@ -1,0 +1,702 @@
+.rsu-print-sheet {
+  display: none;
+}
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: letter portrait;
+    margin: 5mm;
+  }
+
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .dash-glow,
+  .dash-header,
+  .dash-module-bar,
+  .no-print,
+  .rsu-panel,
+  .rsu-toast-backdrop,
+  .modal-backdrop {
+    display: none !important;
+  }
+
+  .dash-shell,
+  .dash-main {
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .rsu-printables-batch__item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .rsu-printables-batch__item--followed {
+    margin-bottom: 0.45rem;
+    padding-bottom: 0.35rem;
+  }
+
+  .rsu-print-sheet,
+  .rsu-print-sheet.is-active {
+    display: block !important;
+    box-sizing: border-box;
+    color: #111;
+    font-family: Arial, Helvetica, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* —— Route Transaction Summary (full-width) —— */
+  .rsu-print-sheet--summary {
+    width: 100%;
+    font-size: 8px;
+    line-height: 1.15;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__header {
+    margin: 0 0 0.28rem;
+    padding: 0 0 0.22rem;
+    border-bottom: 1.4px solid #0f172a;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__brand-bar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.45rem 0.7rem;
+    align-items: end;
+    margin-bottom: 0.22rem;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__sales {
+    display: grid;
+    gap: 0.02rem;
+    min-width: 4.2rem;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__sales-label {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #334155;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__sales strong {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    color: #0f172a;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__titles {
+    text-align: center;
+    min-width: 0;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__org {
+    margin: 0;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #0f4c5c;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__report-title {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: baseline;
+    gap: 0.18rem 0.35rem;
+    margin: 0.08rem 0 0;
+    font-weight: 700;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__company {
+    font-size: 13px;
+    color: #0f172a;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__branch {
+    font-size: 11px;
+    color: #0f4c5c;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__doc {
+    font-size: 10px;
+    font-style: italic;
+    color: #1e293b;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.08rem 0.55rem;
+    margin: 0;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__meta > div {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.15rem;
+    align-items: baseline;
+    min-width: 0;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__meta dt {
+    margin: 0;
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #1d4ed8;
+    white-space: nowrap;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__meta dd {
+    margin: 0;
+    font-size: 8.5px;
+    font-weight: 700;
+    color: #1d4ed8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    gap: 0.35rem;
+    align-items: start;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__fulls table,
+  .rsu-print-sheet--summary .rsu-print-sheet__empties table,
+  .rsu-print-sheet--summary .rsu-print-sheet__crew table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__fulls th,
+  .rsu-print-sheet--summary .rsu-print-sheet__fulls td,
+  .rsu-print-sheet--summary .rsu-print-sheet__empties th,
+  .rsu-print-sheet--summary .rsu-print-sheet__empties td,
+  .rsu-print-sheet--summary .rsu-print-sheet__crew th,
+  .rsu-print-sheet--summary .rsu-print-sheet__crew td {
+    border: 0.5px solid #94a3b8;
+    padding: 0.08rem 0.14rem;
+    vertical-align: middle;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__fulls thead th {
+    background: #e2e8f0;
+    font-size: 7px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    text-align: center;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__fulls thead th.is-name {
+    text-align: left;
+    width: 34%;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__fulls tbody td {
+    font-size: 7.5px;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__fulls .is-brand td {
+    background: #e2e8f0;
+    font-weight: 800;
+    font-size: 7.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__fulls .is-name {
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__fulls .is-qty,
+  .rsu-print-sheet--summary .rsu-print-sheet__fulls .is-num,
+  .rsu-print-sheet--summary .rsu-print-sheet__empties .is-qty,
+  .rsu-print-sheet--summary .rsu-print-sheet__empties .is-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__fulls .is-red,
+  .rsu-print-sheet--summary .rsu-print-sheet__empties .is-red {
+    color: #dc2626;
+    font-weight: 700;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__fulls .is-empty,
+  .rsu-print-sheet--summary .rsu-print-sheet__empties .is-empty {
+    text-align: center;
+    color: #64748b;
+    font-style: italic;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__side {
+    display: grid;
+    gap: 0.28rem;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__empties {
+    border: 0.8px solid #64748b;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__empties > h2 {
+    margin: 0;
+    padding: 0.12rem 0.2rem;
+    background: #475569;
+    color: #fff;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__empties-block h3 {
+    margin: 0;
+    padding: 0.08rem 0.16rem;
+    background: #e2e8f0;
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__empties thead th {
+    background: #f1f5f9;
+    font-size: 6.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__empties thead th.is-name,
+  .rsu-print-sheet--summary .rsu-print-sheet__empties td.is-name {
+    text-align: left;
+    width: 42%;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__empties-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.14rem 0.2rem;
+    border-top: 0.8px solid #64748b;
+    font-size: 8px;
+    font-weight: 800;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__finance {
+    border: 0.8px solid #94a3b8;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.25rem;
+    align-items: baseline;
+    padding: 0.1rem 0.22rem;
+    border-bottom: 0.5px solid #cbd5e1;
+    font-size: 8px;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row:last-child {
+    border-bottom: 0;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row span {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row strong {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row.is-total span,
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row.is-total strong {
+    color: #1d4ed8;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row.is-deduction span,
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row.is-deduction strong {
+    color: #dc2626;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row.is-subtotal span,
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row.is-subtotal strong,
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row.is-cash span,
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row.is-cash strong {
+    color: #15803d;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row.is-short.is-neg span,
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row.is-short.is-neg strong {
+    color: #dc2626;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row.is-short.is-pos span,
+  .rsu-print-sheet--summary .rsu-print-sheet__finance-row.is-short.is-pos strong {
+    color: #15803d;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__crew {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.22rem;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__crew thead th {
+    background: #e2e8f0;
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__crew tbody th {
+    width: 38%;
+    background: #f8fafc;
+    font-size: 6.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    text-align: left;
+  }
+
+  .rsu-print-sheet--summary .rsu-print-sheet__crew tbody td {
+    font-size: 7.5px;
+    font-weight: 700;
+  }
+
+  /* —— Route Printables (compact half-page liquidation) —— */
+  .rsu-print-sheet--liquidation {
+    width: 48%;
+    max-width: 95mm;
+    max-height: 48%;
+    overflow: hidden;
+    font-size: 8px;
+    line-height: 1.12;
+    transform-origin: top left;
+  }
+
+  .rsu-printables-batch__item .rsu-print-sheet--liquidation {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .rsu-liq__header {
+    margin: 0 0 0.2rem;
+  }
+
+  .rsu-liq__masthead {
+    margin: 0 0 0.22rem;
+    padding: 0.22rem 0.28rem 0.28rem;
+    border: 1px solid #0f172a;
+    border-top: 3px solid #1e5a8a;
+    background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+    text-align: center;
+  }
+
+  .rsu-liq__org {
+    margin: 0;
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #1e5a8a;
+  }
+
+  .rsu-liq__company {
+    margin: 0.08rem 0 0;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    color: #0f172a;
+  }
+
+  .rsu-liq__doc {
+    margin: 0.12rem 0 0;
+    font-size: 8.5px;
+    font-weight: 700;
+    font-style: italic;
+    letter-spacing: 0.01em;
+    color: #1e293b;
+  }
+
+  .rsu-liq__meta {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 0.15rem 0.45rem;
+    margin: 0;
+    padding: 0.08rem 0 0.12rem;
+    border-bottom: 1px solid #94a3b8;
+  }
+
+  .rsu-liq__meta-col {
+    display: grid;
+    gap: 0.04rem;
+    min-width: 0;
+  }
+
+  .rsu-liq__meta-col > div {
+    display: grid;
+    grid-template-columns: 4.6rem minmax(0, 1fr);
+    gap: 0.12rem;
+    align-items: start;
+    min-width: 0;
+  }
+
+  .rsu-liq__meta-col span {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #111;
+    white-space: nowrap;
+  }
+
+  .rsu-liq__meta-col strong {
+    font-size: 8px;
+    font-weight: 700;
+    color: #0000ff;
+    white-space: normal;
+    overflow: visible;
+    word-break: break-word;
+    line-height: 1.2;
+  }
+
+  .rsu-liq__meta-col > div.is-route strong {
+    white-space: normal;
+  }
+
+  .rsu-liq__table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .rsu-liq__table th,
+  .rsu-liq__table td {
+    border: 0.5px solid #cbd5e1;
+    padding: 0.05rem 0.12rem;
+    vertical-align: middle;
+  }
+
+  .rsu-liq__table thead th {
+    background: #e5e7eb;
+    font-size: 7px;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .rsu-liq__table thead th.is-name {
+    text-align: left;
+    width: 46%;
+  }
+
+  .rsu-liq__table thead th.is-qty {
+    width: 14%;
+  }
+
+  .rsu-liq__table thead th.is-num {
+    width: 20%;
+  }
+
+  .rsu-liq__table tbody td {
+    font-size: 7.5px;
+  }
+
+  .rsu-liq__table .is-name {
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rsu-liq__table .is-qty {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rsu-liq__table .is-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rsu-liq__table .is-red {
+    color: #ff0000;
+    font-weight: 700;
+  }
+
+  .rsu-liq__table .is-empty {
+    text-align: center;
+    font-style: italic;
+    color: #64748b;
+  }
+
+  .rsu-liq__empties-banner td {
+    padding: 0.12rem 0.1rem;
+    border-top: 1px solid #94a3b8;
+    border-bottom: 1px solid #94a3b8;
+    background: #fff;
+    color: #ff0000;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.28em;
+    text-align: center;
+  }
+
+  .rsu-liq__finance {
+    width: 100%;
+    margin: 0.18rem 0 0;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .rsu-liq__finance td {
+    border: none;
+    border-bottom: 0.5px solid #cbd5e1;
+    padding: 0.06rem 0.12rem;
+    vertical-align: middle;
+    font-size: 7.5px;
+  }
+
+  .rsu-liq__finance tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .rsu-liq__finance td.is-label {
+    width: 46%;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #111;
+    text-align: left;
+  }
+
+  .rsu-liq__finance td:nth-child(2) {
+    width: 14%;
+  }
+
+  .rsu-liq__finance td:nth-child(3) {
+    width: 20%;
+  }
+
+  .rsu-liq__finance td:nth-child(4) {
+    width: 20%;
+  }
+
+  .rsu-liq__finance td.is-num {
+    text-align: right;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .rsu-liq__finance .is-blue {
+    color: #0000ff;
+  }
+
+  .rsu-liq__finance .is-red {
+    color: #ff0000;
+  }
+
+  .rsu-liq__finance .is-green {
+    color: #008000;
+  }
+
+  .rsu-liq__finance tr.is-deduction td.is-label {
+    padding-left: 0.55rem;
+    font-size: 7px;
+  }
+
+  .rsu-liq__end {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.35rem;
+  }
+
+  .rsu-liq__end-line {
+    flex: 1 1 auto;
+    height: 0;
+    border-top: 0.6px solid #64748b;
+  }
+
+  .rsu-liq__end-label {
+    flex: 0 0 auto;
+    font-size: 7px;
+    font-weight: 700;
+    font-style: italic;
+    letter-spacing: 0.04em;
+    color: #475569;
+    white-space: nowrap;
+  }
+
+  /* DSL Printables: details left, items + finance tables right. */
+  .rsu-print-sheet--liquidation.rsu-print-sheet--dsl {
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .rsu-liq__dsl-body {
+    display: grid;
+    grid-template-columns: minmax(42mm, 0.34fr) minmax(0, 1fr);
+    gap: 0.35rem 0.55rem;
+    align-items: start;
+  }
+
+  .rsu-liq__dsl-details {
+    min-width: 0;
+  }
+
+  .rsu-print-sheet--dsl .rsu-liq__meta {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.04rem;
+    margin: 0;
+    padding: 0.12rem 0.16rem;
+    border: 1px solid #94a3b8;
+    border-bottom: 1px solid #94a3b8;
+  }
+
+  .rsu-print-sheet--dsl .rsu-liq__meta-col {
+    gap: 0.04rem;
+  }
+
+  .rsu-liq__dsl-tables {
+    min-width: 0;
+    display: grid;
+    gap: 0.18rem;
+    align-content: start;
+  }
+}

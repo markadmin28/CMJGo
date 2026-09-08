@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { UserBranch } from '../lib/branches'
 import {
   parseBoAccLeafId,
   parseBoInOutLeafId,
@@ -206,7 +207,7 @@ function TreeNode({ node, depth, selectedId, expanded, onToggle, onSelect }: Tre
   )
 }
 
-export function BoBadOrderPanel() {
+export function BoBadOrderPanel({ branch = 'Davao' }: { branch?: UserBranch | null }) {
   const allFolderIds = useMemo(() => collectFolderIds(BO_TREE), [])
   const [expanded, setExpanded] = useState(() => new Set(allFolderIds))
   const [selectedId, setSelectedId] = useState('bo-pc')
@@ -254,7 +255,12 @@ export function BoBadOrderPanel() {
 
   if (activeFormMeta && activeFormId) {
     return (
-      <BoInOutForm key={activeFormId} meta={activeFormMeta} onClose={closeActive} />
+      <BoInOutForm
+        key={activeFormId}
+        meta={activeFormMeta}
+        branch={branch}
+        onClose={closeActive}
+      />
     )
   }
 

@@ -71,6 +71,134 @@ export type FullBLiquidationSummary = {
   todayOut: number
   runningOutMtd: number
   totalStockRemain: number
+  /** True when previous-month Actual Inventory was used for previousMonthRemain. */
+  usedActualPreviousMonth: boolean
+}
+
+export type BLiquidationProductRef = {
+  id: string
+  name: string
+  subcategoryName: string
+}
+
+/** Same key shape as actualInventory.buildActualBeginningLookup. */
+export type BLiquidationActualLookup = Map<string, number>
+
+function actualSectionForMode(mode: 'fulls' | 'empties'): 'fg' | 'mts' {
+  return mode === 'empties' ? 'mts' : 'fg'
+}
+
+function actualQtyKey(section: 'fg' | 'mts', productId: string, productName: string) {
+  if (productId) return `${section}:id:${productId}`
+  return `${section}:name:${normalizeCategoryName(productName)}`
+}
+
+function lookupActualQty(
+  lookup: BLiquidationActualLookup | null | undefined,
+  section: 'fg' | 'mts',
+  productId: string,
+  productName: string,
+) {
+  if (!lookup) return null
+  const byId = lookup.get(actualQtyKey(section, productId, productName))
+  if (byId != null) return byId
+  const byName = lookup.get(actualQtyKey(section, '', productName))
+  return byName == null ? null : byName
+}
+
+function sumProductMovementCases(
+  movements: FullGoodsMovement[],
+  productId: string,
+  productName: string,
+  movementType: 'in' | 'out',
+  datePredicate: (isoDate: string) => boolean,
+) {
+  let total = 0
+  const nameKey = normalizeCategoryName(productName)
+  for (const movement of movements) {
+    if (movement.movement_type !== movementType) continue
+    if (!datePredicate(movement.movement_date)) continue
+    for (const item of movement.items ?? []) {
+      const matchesId = Boolean(item.product_id && item.product_id === productId)
+      const matchesName = normalizeCategoryName(item.product_name) === nameKey
+      if (!matchesId && !matchesName) continue
+      total += Number(item.quantity || 0)
+    }
+  }
+  return total
+}
+
+/** Per-product previous-month remain: Actual Inventory when present, else movement net. */
+export function productPreviousMonthRemain(
+  movements: FullGoodsMovement[],
+  product: BLiquidationProductRef,
+  category: string,
+  dateTo: string,
+  mode: 'fulls' | 'empties',
+  actualBeginning?: BLiquidationActualLookup | null,
+) {
+  const categoryMovements = movements.filter((movement) =>
+    matchesBLiquidationCategory(movement, category, mode),
+  )
+  const prevMonthEnd = previousMonthEndIso(dateTo)
+  const throughPrev = (isoDate: string) => isoDate <= prevMonthEnd
+  const computedIn = sumProductMovementCases(
+    categoryMovements,
+    product.id,
+    product.name,
+    'in',
+    throughPrev,
+  )
+  const computedOut = sumProductMovementCases(
+    categoryMovements,
+    product.id,
+    product.name,
+    'out',
+    throughPrev,
+  )
+  const computed = computedIn - computedOut
+  const saved = lookupActualQty(
+    actualBeginning,
+    actualSectionForMode(mode),
+    product.id,
+    product.name,
+  )
+  return saved == null ? computed : saved
+}
+
+export function sumPreviousMonthRemainFromActual(
+  movements: FullGoodsMovement[],
+  products: BLiquidationProductRef[],
+  category: string,
+  dateTo: string,
+  mode: 'fulls' | 'empties',
+  actualBeginning?: BLiquidationActualLookup | null,
+) {
+  if (!actualBeginning || products.length === 0) {
+    return { remain: null as number | null, usedActual: false }
+  }
+
+  let usedActual = false
+  let remain = 0
+  for (const product of products) {
+    const saved = lookupActualQty(
+      actualBeginning,
+      actualSectionForMode(mode),
+      product.id,
+      product.name,
+    )
+    if (saved != null) usedActual = true
+    remain += productPreviousMonthRemain(
+      movements,
+      product,
+      category,
+      dateTo,
+      mode,
+      actualBeginning,
+    )
+  }
+
+  return { remain: usedActual ? remain : null, usedActual }
 }
 
 export function computeFullBLiquidationSummary(
@@ -78,6 +206,10 @@ export function computeFullBLiquidationSummary(
   category: string,
   dateTo: string,
   mode: 'fulls' | 'empties' = 'fulls',
+  options?: {
+    products?: BLiquidationProductRef[]
+    actualBeginning?: BLiquidationActualLookup | null
+  },
 ): FullBLiquidationSummary {
   const categoryMovements = movements.filter((movement) =>
     matchesBLiquidationCategory(movement, category, mode),
@@ -104,7 +236,20 @@ export function computeFullBLiquidationSummary(
     categoryMovements,
     (movement) => movement.movement_type === 'out' && movement.movement_date <= prevMonthEnd,
   )
-  const previousMonthRemain = previousMonthIn - previousMonthOut
+  const movementPreviousRemain = previousMonthIn - previousMonthOut
+
+  const actualSummary = sumPreviousMonthRemainFromActual(
+    movements,
+    options?.products ?? [],
+    category,
+    dateTo,
+    mode,
+    options?.actualBeginning,
+  )
+  const previousMonthRemain =
+    actualSummary.usedActual && actualSummary.remain != null
+      ? actualSummary.remain
+      : movementPreviousRemain
   const totalStockIn = previousMonthRemain + runningInMtd
 
   const todayOut = sumCases(
@@ -128,6 +273,7 @@ export function computeFullBLiquidationSummary(
     todayOut,
     runningOutMtd,
     totalStockRemain,
+    usedActualPreviousMonth: actualSummary.usedActual,
   }
 }
 
@@ -212,33 +358,25 @@ export function mergeEmptiesBreakdownRows(rows: ProductRemainRow[]): ProductRema
   return merged
 }
 
-/** SMC MTS empties: keep all products, but hide zero/empty remain rows. */
-export function filterSmcMtsBreakdownRows(rows: ProductRemainRow[]): ProductRemainRow[] {
-  const filtered = mergeEmptiesBreakdownRows(rows).filter((row) => {
+/** Empties breakdown: merge Pepsi aliases and hide zero remain rows. */
+export function prepareEmptiesBreakdownRows(rows: ProductRemainRow[]): ProductRemainRow[] {
+  return mergeEmptiesBreakdownRows(rows).filter((row) => {
     const value = Number(row.remain)
     return Number.isFinite(value) && value !== 0
   })
-
-  const subcategoryName = filtered[0]?.subcategoryName?.trim() || rows[0]?.subcategoryName?.trim() || 'SMC MTS'
-  return [
-    ...filtered,
-    {
-      productId: 'smc-mts:MUCHO',
-      productName: 'MUCHO',
-      subcategoryName,
-      remain: 51,
-    },
-  ]
 }
 
-export function prepareEmptiesBreakdownRows(
-  rows: ProductRemainRow[],
-  category: string,
-): ProductRemainRow[] {
-  if (normalizeCategoryName(category) === 'smc mts') {
-    return filterSmcMtsBreakdownRows(rows)
+function dedupeCategoryProducts<
+  T extends { id: string; name: string; subcategoryName: string },
+>(products: T[]): T[] {
+  const seen = new Set<string>()
+  const unique: T[] = []
+  for (const product of products) {
+    if (seen.has(product.id)) continue
+    seen.add(product.id)
+    unique.push(product)
   }
-  return mergeEmptiesBreakdownRows(rows)
+  return unique
 }
 
 export function computeProductRemains(
@@ -247,40 +385,98 @@ export function computeProductRemains(
   category: string,
   dateTo: string,
   mode: 'fulls' | 'empties' = 'fulls',
+  actualBeginning?: BLiquidationActualLookup | null,
 ): ProductRemainRow[] {
-  const categoryMovements = movements.filter(
-    (movement) =>
-      matchesBLiquidationCategory(movement, category, mode) && movement.movement_date <= dateTo,
+  const uniqueProducts = dedupeCategoryProducts(products)
+  const categoryMovements = movements.filter((movement) =>
+    matchesBLiquidationCategory(movement, category, mode),
   )
-
-  const remainById = new Map<string, number>()
   const catalogByName = new Map(
-    products.map((product) => [normalizeCategoryName(product.name), product.id]),
+    uniqueProducts.map((product) => [normalizeCategoryName(product.name), product.id]),
   )
+  const remainById = new Map<string, number>()
+  const orphanByName = new Map<string, { name: string; remain: number }>()
 
-  for (const product of products) {
+  for (const product of uniqueProducts) {
     remainById.set(product.id, 0)
   }
 
+  const actualSummary = sumPreviousMonthRemainFromActual(
+    movements,
+    uniqueProducts,
+    category,
+    dateTo,
+    mode,
+    actualBeginning,
+  )
+  const useActualBasis = actualSummary.usedActual
+  const prevMonthEnd = previousMonthEndIso(dateTo)
+  const includeMovementDate = (isoDate: string) =>
+    useActualBasis ? isoDate > prevMonthEnd && isoDate <= dateTo : isoDate <= dateTo
+
+  if (useActualBasis) {
+    for (const product of uniqueProducts) {
+      remainById.set(
+        product.id,
+        productPreviousMonthRemain(
+          movements,
+          product,
+          category,
+          dateTo,
+          mode,
+          actualBeginning,
+        ),
+      )
+    }
+  }
+
   for (const movement of categoryMovements) {
+    if (!includeMovementDate(movement.movement_date)) continue
     const sign = movement.movement_type === 'in' ? 1 : -1
     for (const item of movement.items ?? []) {
       const qty = Number(item.quantity || 0)
       if (!qty) continue
 
       const nameKey = normalizeCategoryName(item.product_name)
-      const catalogId = item.product_id || catalogByName.get(nameKey)
-      if (!catalogId) continue
+      // Prefer a catalog id that exists in this category; fall back to name
+      // when product_id is missing or points at a removed/other-category SKU.
+      const byId =
+        item.product_id && remainById.has(item.product_id) ? item.product_id : undefined
+      const catalogId = byId ?? catalogByName.get(nameKey)
+      if (!catalogId || !remainById.has(catalogId)) {
+        // Keep unmatched lines so breakdown TOTAL REMAIN matches summary.
+        const existing = orphanByName.get(nameKey)
+        if (existing) {
+          existing.remain += sign * qty
+        } else {
+          orphanByName.set(nameKey, {
+            name: (item.product_name || 'Unknown').trim() || 'Unknown',
+            remain: sign * qty,
+          })
+        }
+        continue
+      }
       remainById.set(catalogId, (remainById.get(catalogId) ?? 0) + sign * qty)
     }
   }
 
-  return products.map((product) => ({
+  const catalogRows = uniqueProducts.map((product) => ({
     productId: product.id,
     productName: product.name,
     subcategoryName: product.subcategoryName,
     remain: remainById.get(product.id) ?? 0,
   }))
+
+  const orphanRows: ProductRemainRow[] = [...orphanByName.values()]
+    .filter((row) => row.remain !== 0)
+    .map((row) => ({
+      productId: `orphan:${normalizeCategoryName(row.name)}`,
+      productName: row.name,
+      subcategoryName: '',
+      remain: row.remain,
+    }))
+
+  return [...catalogRows, ...orphanRows]
 }
 
 export function splitProductColumns<T>(items: T[], columnCount = 3): T[][] {

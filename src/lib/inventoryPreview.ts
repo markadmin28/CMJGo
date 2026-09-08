@@ -20,6 +20,10 @@ const EMPTIES_SUBCATEGORY_BY_CATEGORY: Record<InventoryCategory, string> = {
   Magnolia: 'Magnolia MTS',
 }
 
+export function inventoryEmptiesCategoryLabel(category: InventoryCategory) {
+  return EMPTIES_SUBCATEGORY_BY_CATEGORY[category]
+}
+
 export function inventoryPreviewTitle(category: InventoryCategory) {
   if (category === 'PCPPI') return 'PEPSI INVENTORY PREVIEW'
   return `${category.toUpperCase()} INVENTORY PREVIEW`

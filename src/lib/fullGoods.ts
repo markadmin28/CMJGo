@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import type { UserBranch } from './branches'
 import { capitalizeFirst, isMissingCatalogTable } from './catalog'
 import type {
   FullGoodsInput,
@@ -9,6 +10,10 @@ import type {
 
 function capitalizeName(value: string) {
   return capitalizeFirst(value).trim()
+}
+
+function resolveBranch(branch?: UserBranch | null) {
+  return branch ?? 'Davao'
 }
 
 function mapError(error: { message?: string; code?: string; details?: string } | null) {
@@ -23,7 +28,7 @@ function mapError(error: { message?: string; code?: string; details?: string } |
       return 'That load number is already used. Pick the next series number for this month, or run the latest Full Goods SQL.'
     }
     if (message.includes('locations') || message.includes('full_goods_locations')) {
-      return 'That location name already exists.'
+      return 'That location name already exists for this branch.'
     }
     return 'A matching record already exists.'
   }
@@ -32,15 +37,43 @@ function mapError(error: { message?: string; code?: string; details?: string } |
 }
 
 const PRESET_LOAD_OPTIONS = ['BO', 'OTHERS'] as const
+const DAILY_LOAD_PRESETS = ['BO', 'ROUTE FROM OTHERS', 'OTHERS'] as const
 
 export function getPresetLoadOptions() {
   return [...PRESET_LOAD_OPTIONS]
 }
 
-export async function listLocations() {
+export function getDailyLoadPresets() {
+  return [...DAILY_LOAD_PRESETS]
+}
+
+function normalizeLoadKey(value: string) {
+  return String(value ?? '').trim().toUpperCase()
+}
+
+export function isPresetLoadNumber(value: string) {
+  const normalized = normalizeLoadKey(value)
+  return (
+    PRESET_LOAD_OPTIONS.includes(normalized as (typeof PRESET_LOAD_OPTIONS)[number]) ||
+    normalized === 'ROUTE FROM OTHERS'
+  )
+}
+
+export function normalizeDailyLoadNumber(value: string) {
+  const trimmed = String(value ?? '').trim()
+  const normalized = normalizeLoadKey(trimmed)
+  if (normalized === 'BO') return 'BO'
+  if (normalized === 'OTHERS') return 'OTHERS'
+  if (normalized === 'ROUTE FROM OTHERS') return 'ROUTE FROM OTHERS'
+  return trimmed
+}
+
+export async function listLocations(branch?: UserBranch | null) {
+  const resolvedBranch = resolveBranch(branch)
   const { data, error } = await supabase
     .from('full_goods_locations')
-    .select('id, name, created_at')
+    .select('id, branch, name, created_at')
+    .eq('branch', resolvedBranch)
     .order('created_at', { ascending: true })
 
   return {
@@ -50,14 +83,19 @@ export async function listLocations() {
   }
 }
 
-export async function addLocation(name: string, createdBy?: string) {
+export async function addLocation(
+  name: string,
+  createdBy?: string,
+  branch?: UserBranch | null,
+) {
   const trimmed = capitalizeName(name)
   if (!trimmed) return { data: null as FullGoodsLocation | null, error: 'Location name is required.' }
 
+  const resolvedBranch = resolveBranch(branch)
   const { data, error } = await supabase
     .from('full_goods_locations')
-    .insert({ name: trimmed, created_by: createdBy ?? null })
-    .select('id, name, created_at')
+    .insert({ name: trimmed, branch: resolvedBranch, created_by: createdBy ?? null })
+    .select('id, branch, name, created_at')
     .single()
 
   return { data: data as FullGoodsLocation | null, error: mapError(error) }
@@ -71,7 +109,7 @@ export async function updateLocation(id: string, name: string) {
     .from('full_goods_locations')
     .update({ name: trimmed })
     .eq('id', id)
-    .select('id, name, created_at')
+    .select('id, branch, name, created_at')
     .single()
 
   return { data: data as FullGoodsLocation | null, error: mapError(error) }
@@ -124,11 +162,14 @@ export async function getNextSeriesLoadNumber(
   movementDate: string,
   mode: LoadSeriesMode,
   emptiesParentId?: string | null,
+  branch?: UserBranch | null,
 ) {
+  const activeBranch = resolveBranch(branch)
   const { start, end } = monthRange(movementDate)
   const { data, error } = await supabase
     .from('full_goods_movements')
     .select('load_number, category_id, category_name')
+    .eq('branch', activeBranch)
     .gte('movement_date', start)
     .lte('movement_date', end)
 
@@ -156,18 +197,14 @@ export async function getNextSeriesLoadNumber(
   }
 }
 
-export function isPresetLoadNumber(value: string) {
-  const normalized = String(value ?? '').trim().toUpperCase()
-  return PRESET_LOAD_OPTIONS.includes(normalized as (typeof PRESET_LOAD_OPTIONS)[number])
-}
-
 /** Load options: next monthly series + BO / OTHERS. */
 export async function listLoadNumberOptions(
   movementDate: string,
   mode: LoadSeriesMode,
   emptiesParentId?: string | null,
+  branch?: UserBranch | null,
 ) {
-  const next = await getNextSeriesLoadNumber(movementDate, mode, emptiesParentId)
+  const next = await getNextSeriesLoadNumber(movementDate, mode, emptiesParentId, branch)
   if (next.error) {
     return {
       data: [...PRESET_LOAD_OPTIONS] as string[],
@@ -189,7 +226,8 @@ export async function listLoadNumberOptions(
 const MOVEMENTS_PAGE_SIZE = 1000
 const ITEMS_ID_CHUNK_SIZE = 100
 
-export async function listFullGoodsMovements() {
+export async function listFullGoodsMovements(branch?: UserBranch | null) {
+  const activeBranch = resolveBranch(branch)
   const movements: FullGoodsMovement[] = []
   let from = 0
 
@@ -198,8 +236,9 @@ export async function listFullGoodsMovements() {
     const movementsResult = await supabase
       .from('full_goods_movements')
       .select(
-        'id, movement_type, movement_date, truck_number, load_number, location, location_id, category_id, category_name, brand_id, brand_name, created_at',
+        'id, branch, movement_type, movement_date, truck_number, load_number, location, location_id, category_id, category_name, brand_id, brand_name, created_at',
       )
+      .eq('branch', activeBranch)
       .order('movement_date', { ascending: false })
       .order('created_at', { ascending: false })
       .range(from, from + MOVEMENTS_PAGE_SIZE - 1)
@@ -261,6 +300,7 @@ export async function addFullGoodsMovement(input: FullGoodsInput, createdBy?: st
   const loadNumber = String(input.load_number ?? '').trim()
   const location = capitalizeName(input.location)
   const categoryName = capitalizeName(input.category_name)
+  const branch = resolveBranch(input.branch as UserBranch)
 
   if (!input.movement_date) {
     return { data: null as FullGoodsMovement | null, error: 'Date is required.' }
@@ -283,14 +323,16 @@ export async function addFullGoodsMovement(input: FullGoodsInput, createdBy?: st
   }
 
   const primaryBrand = input.items[0]
+  const loadKey = normalizeLoadKey(loadNumber)
   const listOption =
-    loadNumber.toUpperCase() === 'BO' || loadNumber.toUpperCase() === 'OTHERS'
-      ? loadNumber.toUpperCase()
+    loadKey === 'BO' || loadKey === 'OTHERS' || loadKey === 'ROUTE FROM OTHERS'
+      ? loadKey
       : 'OTHERS'
 
   const { data: movement, error } = await supabase
     .from('full_goods_movements')
     .insert({
+      branch,
       movement_type: input.movement_type,
       movement_date: input.movement_date,
       truck_number: truckNumber,
@@ -305,7 +347,7 @@ export async function addFullGoodsMovement(input: FullGoodsInput, createdBy?: st
       created_by: createdBy ?? null,
     })
     .select(
-      'id, movement_type, movement_date, truck_number, load_number, location, location_id, category_id, category_name, brand_id, brand_name, created_at',
+      'id, branch, movement_type, movement_date, truck_number, load_number, location, location_id, category_id, category_name, brand_id, brand_name, created_at',
     )
     .single()
 
@@ -337,6 +379,7 @@ export async function updateFullGoodsMovement(id: string, input: FullGoodsInput)
   const loadNumber = String(input.load_number ?? '').trim()
   const location = capitalizeName(input.location)
   const categoryName = capitalizeName(input.category_name)
+  const branch = resolveBranch(input.branch as UserBranch)
 
   if (!input.movement_date) {
     return { data: null as FullGoodsMovement | null, error: 'Date is required.' }
@@ -359,14 +402,16 @@ export async function updateFullGoodsMovement(id: string, input: FullGoodsInput)
   }
 
   const primaryBrand = input.items[0]
+  const loadKey = normalizeLoadKey(loadNumber)
   const listOption =
-    loadNumber.toUpperCase() === 'BO' || loadNumber.toUpperCase() === 'OTHERS'
-      ? loadNumber.toUpperCase()
+    loadKey === 'BO' || loadKey === 'OTHERS' || loadKey === 'ROUTE FROM OTHERS'
+      ? loadKey
       : 'OTHERS'
 
   const { error } = await supabase
     .from('full_goods_movements')
     .update({
+      branch,
       movement_type: input.movement_type,
       movement_date: input.movement_date,
       truck_number: truckNumber,
@@ -408,6 +453,7 @@ export async function updateFullGoodsMovement(id: string, input: FullGoodsInput)
   return {
     data: {
       id,
+      branch,
       movement_type: input.movement_type,
       movement_date: input.movement_date,
       truck_number: truckNumber,

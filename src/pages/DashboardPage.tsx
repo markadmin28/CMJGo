@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, type MouseEvent } from 'react'
 import { AddUserModal } from '../components/AddUserModal'
 import { CatalogPanel } from '../components/CatalogPanel'
 import { CmjGoLogo } from '../components/CmjGoLogo'
+import { CustomersDiscountPanel } from '../components/CustomersDiscountPanel'
 import { FthDiscountPanel } from '../components/FthDiscountPanel'
 import { FullGoodsPanel } from '../components/FullGoodsPanel'
 import {
@@ -11,16 +12,47 @@ import {
 } from '../components/PrintablesChooserModal'
 import { InventoryChooserModal } from '../components/InventoryChooserModal'
 import { InventoryPreviewPanel } from '../components/InventoryPreviewPanel'
+import { CollectionPanel } from '../components/CollectionPanel'
 import { ActualInventoryPanel } from '../components/ActualInventoryPanel'
 import { FactoryTransactionChooserModal } from '../components/FactoryTransactionChooserModal'
 import { FactoryTransactionPanel } from '../components/FactoryTransactionPanel'
 import { FtPrintablesPanel } from '../components/FtPrintablesPanel'
 import type { InventoryCategory } from '../lib/inventoryPreview'
-import { factoryTransactionTitle } from '../lib/factoryTransaction'
 import { SkuPrintablesPanel } from '../components/SkuPrintablesPanel'
+import { CustomerPrintablesPanel } from '../components/CustomerPrintablesPanel'
+import { RoutePrintablesPanel } from '../components/RoutePrintablesPanel'
+import { DslPrintablesPanel } from '../components/DslPrintablesPanel'
 import { BLiquidationPrintablesPanel } from '../components/BLiquidationPrintablesPanel'
 import { FullsPrintablesPanel } from '../components/FullsPrintablesPanel'
 import { BoBadOrderPanel } from '../components/BoBadOrderPanel'
+import {
+  CustomerTransactionOptionsPopover,
+  type CustomerTransactionOption,
+} from '../components/CustomerTransactionOptionsPopover'
+import {
+  RouteTransactionOptionsPopover,
+  type RouteTransactionOption,
+} from '../components/RouteTransactionOptionsPopover'
+import {
+  DailyGoodsOptionsPopover,
+  type DailyGoodsCompany,
+  type DailyGoodsMenuKind,
+} from '../components/DailyGoodsOptionsPopover'
+import {
+  ActualInventoryOptionsPopover,
+  type ActualInventoryCompany,
+} from '../components/ActualInventoryOptionsPopover'
+import { InventoryOptionsPopover } from '../components/InventoryOptionsPopover'
+import {
+  CollectionOptionsPopover,
+  type CollectionOptionId,
+} from '../components/CollectionOptionsPopover'
+import { CustomerTransactionPanel } from '../components/CustomerTransactionPanel'
+import { RouteTransactionPanel } from '../components/RouteTransactionPanel'
+import {
+  type CustomerTransactionCompany,
+} from '../lib/customerTransaction'
+import { SkuOptionsPopover, type SkuOption } from '../components/SkuOptionsPopover'
 import { useAuth } from '../contexts/AuthContext'
 import {
   canAccessDashboardCard,
@@ -50,9 +82,19 @@ import './DashboardPage.css'
 type DashModule =
   | 'home'
   | 'sku'
+  | 'skuCustomersDiscount'
+  | 'customerTransaction'
+  | 'routeTransactions'
+  | 'customerPrintables'
+  | 'routePrintables'
+  | 'dslPrintables'
+  | 'fullGoodsDailyIn'
+  | 'emptiesDailyIn'
+  | 'emptiesDailyOut'
   | 'skuPrintables'
   | 'inventory'
   | 'actualInventory'
+  | 'collection'
   | 'factoryTransaction'
   | 'ftPrintables'
   | 'fth'
@@ -93,6 +135,28 @@ export function DashboardPage() {
   const [printablesKind, setPrintablesKind] = useState<PrintablesChooserKind>('fulls')
   const [activeModule, setActiveModule] = useState<DashModule>('home')
   const [workspaceBranch, setWorkspaceBranch] = useState<UserBranch | null>(null)
+  const [skuMenuOpen, setSkuMenuOpen] = useState(false)
+  const [skuMenuPos, setSkuMenuPos] = useState({ top: 0, left: 0 })
+  const [customerTxMenuOpen, setCustomerTxMenuOpen] = useState(false)
+  const [customerTxMenuPos, setCustomerTxMenuPos] = useState({ top: 0, left: 0 })
+  const [customerTxCompany, setCustomerTxCompany] =
+    useState<CustomerTransactionCompany>('Pepsi')
+  const [routeTxMenuOpen, setRouteTxMenuOpen] = useState(false)
+  const [routeTxMenuPos, setRouteTxMenuPos] = useState({ top: 0, left: 0 })
+  const [routeTxOption, setRouteTxOption] = useState<RouteTransactionOption>('firstLoad')
+  const [dailyGoodsMenuKind, setDailyGoodsMenuKind] = useState<DailyGoodsMenuKind | null>(null)
+  const [dailyGoodsMenuPos, setDailyGoodsMenuPos] = useState({ top: 0, left: 0 })
+  const [dailyGoodsCompany, setDailyGoodsCompany] = useState<DailyGoodsCompany>('Pepsi')
+  const [actualInventoryMenuOpen, setActualInventoryMenuOpen] = useState(false)
+  const [actualInventoryMenuPos, setActualInventoryMenuPos] = useState({ top: 0, left: 0 })
+  const [actualInventoryCompany, setActualInventoryCompany] =
+    useState<ActualInventoryCompany>('Pepsi')
+  const [inventoryMenuOpen, setInventoryMenuOpen] = useState(false)
+  const [inventoryMenuPos, setInventoryMenuPos] = useState({ top: 0, left: 0 })
+  const [collectionMenuOpen, setCollectionMenuOpen] = useState(false)
+  const [collectionMenuPos, setCollectionMenuPos] = useState({ top: 0, left: 0 })
+  const [collectionOption, setCollectionOption] =
+    useState<CollectionOptionId>('mtsCollections')
   const fullName =
     typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : null
   const userBranch = getUserBranch(user?.user_metadata as Record<string, unknown> | undefined)
@@ -116,20 +180,16 @@ export function DashboardPage() {
   const showModuleHome = activeModule === 'home' && !showBranchPicker
 
   function goHome() {
+    setSkuMenuOpen(false)
+    setCustomerTxMenuOpen(false)
+    setRouteTxMenuOpen(false)
+    setDailyGoodsMenuKind(null)
+    setActualInventoryMenuOpen(false)
+    setInventoryMenuOpen(false)
+    setCollectionMenuOpen(false)
     setActiveModule('home')
     if (needsWorkspacePicker) setWorkspaceBranch(null)
   }
-  const isPrintableModule =
-    activeModule === 'skuPrintables' ||
-    activeModule === 'fullsPrintables' ||
-    activeModule === 'emptiesPrintables' ||
-    activeModule === 'bLiquidationFulls' ||
-    activeModule === 'bLiquidationEmpties'
-  const isInventoryModule = activeModule === 'inventory'
-  const isActualInventoryModule = activeModule === 'actualInventory'
-  const isFactoryModule = activeModule === 'factoryTransaction'
-  const isFtPrintablesModule = activeModule === 'ftPrintables'
-
   function openPrintablesChooser(kind: PrintablesChooserKind) {
     setPrintablesKind(kind)
     setPrintablesOpen(true)
@@ -152,13 +212,229 @@ export function DashboardPage() {
     setActiveModule('factoryTransaction')
   }
 
+  function openSkuMenu(event: MouseEvent<HTMLButtonElement>) {
+    setCustomerTxMenuOpen(false)
+    setRouteTxMenuOpen(false)
+    setDailyGoodsMenuKind(null)
+    setActualInventoryMenuOpen(false)
+    setInventoryMenuOpen(false)
+    setCollectionMenuOpen(false)
+    const rect = event.currentTarget.getBoundingClientRect()
+    setSkuMenuPos({
+      top: rect.top,
+      left: rect.right + 10,
+    })
+    setSkuMenuOpen(true)
+  }
+
+  function openCustomerTxMenu(event: MouseEvent<HTMLButtonElement>) {
+    setSkuMenuOpen(false)
+    setRouteTxMenuOpen(false)
+    setDailyGoodsMenuKind(null)
+    setActualInventoryMenuOpen(false)
+    setInventoryMenuOpen(false)
+    setCollectionMenuOpen(false)
+    const rect = event.currentTarget.getBoundingClientRect()
+    setCustomerTxMenuPos({
+      top: rect.top,
+      left: rect.right + 10,
+    })
+    setCustomerTxMenuOpen(true)
+  }
+
+  function openRouteTxMenu(event: MouseEvent<HTMLButtonElement>) {
+    setSkuMenuOpen(false)
+    setCustomerTxMenuOpen(false)
+    setDailyGoodsMenuKind(null)
+    setActualInventoryMenuOpen(false)
+    setInventoryMenuOpen(false)
+    setCollectionMenuOpen(false)
+    const rect = event.currentTarget.getBoundingClientRect()
+    setRouteTxMenuPos({
+      top: rect.top,
+      left: rect.right + 10,
+    })
+    setRouteTxMenuOpen(true)
+  }
+
+  function openDailyGoodsMenu(
+    kind: DailyGoodsMenuKind,
+    event: MouseEvent<HTMLButtonElement>,
+  ) {
+    setSkuMenuOpen(false)
+    setCustomerTxMenuOpen(false)
+    setRouteTxMenuOpen(false)
+    setActualInventoryMenuOpen(false)
+    setInventoryMenuOpen(false)
+    setCollectionMenuOpen(false)
+    const rect = event.currentTarget.getBoundingClientRect()
+    setDailyGoodsMenuPos({
+      top: rect.top,
+      left: rect.right + 10,
+    })
+    setDailyGoodsMenuKind(kind)
+  }
+
+  function openActualInventoryMenu(event: MouseEvent<HTMLButtonElement>) {
+    setSkuMenuOpen(false)
+    setCustomerTxMenuOpen(false)
+    setRouteTxMenuOpen(false)
+    setDailyGoodsMenuKind(null)
+    setInventoryMenuOpen(false)
+    setCollectionMenuOpen(false)
+    const rect = event.currentTarget.getBoundingClientRect()
+    setActualInventoryMenuPos({
+      top: rect.top,
+      left: rect.right + 10,
+    })
+    setActualInventoryMenuOpen(true)
+  }
+
+  function openInventoryMenu(event: MouseEvent<HTMLButtonElement>) {
+    setSkuMenuOpen(false)
+    setCustomerTxMenuOpen(false)
+    setRouteTxMenuOpen(false)
+    setDailyGoodsMenuKind(null)
+    setActualInventoryMenuOpen(false)
+    setCollectionMenuOpen(false)
+    const rect = event.currentTarget.getBoundingClientRect()
+    setInventoryMenuPos({
+      top: rect.top,
+      left: rect.right + 10,
+    })
+    setInventoryMenuOpen(true)
+  }
+
+  function openCollectionMenu(event: MouseEvent<HTMLButtonElement>) {
+    setSkuMenuOpen(false)
+    setCustomerTxMenuOpen(false)
+    setRouteTxMenuOpen(false)
+    setDailyGoodsMenuKind(null)
+    setActualInventoryMenuOpen(false)
+    setInventoryMenuOpen(false)
+    const rect = event.currentTarget.getBoundingClientRect()
+    setCollectionMenuPos({
+      top: rect.top,
+      left: rect.right + 10,
+    })
+    setCollectionMenuOpen(true)
+  }
+
+  function handleSkuOption(option: SkuOption) {
+    setSkuMenuOpen(false)
+    if (option === 'customersDiscount') {
+      setActiveModule('skuCustomersDiscount')
+      return
+    }
+    setActiveModule('sku')
+  }
+
+  function handleCustomerTxOption(option: CustomerTransactionOption) {
+    setCustomerTxMenuOpen(false)
+    const companyMap = {
+      pepsi: 'Pepsi',
+      smc: 'SMC',
+      magnolia: 'Magnolia',
+    } as const
+    setCustomerTxCompany(companyMap[option])
+    setActiveModule('customerTransaction')
+  }
+
+  function handleRouteTxOption(option: RouteTransactionOption) {
+    setRouteTxMenuOpen(false)
+    setRouteTxOption(option)
+    setActiveModule('routeTransactions')
+  }
+
+  function handleDailyGoodsOption(company: DailyGoodsCompany) {
+    const kind = dailyGoodsMenuKind
+    setDailyGoodsMenuKind(null)
+    if (!kind) return
+    setDailyGoodsCompany(company)
+    setActiveModule(kind)
+  }
+
+  function handleActualInventoryOption(company: ActualInventoryCompany) {
+    setActualInventoryMenuOpen(false)
+    setActualInventoryCompany(company)
+    setActiveModule('actualInventory')
+  }
+
+  function handleInventoryMenuSelect(category: InventoryCategory) {
+    setInventoryMenuOpen(false)
+    setInventoryCategory(category)
+    setActiveModule('inventory')
+  }
+
+  function handleCollectionOption(option: CollectionOptionId) {
+    setCollectionMenuOpen(false)
+    setCollectionOption(option)
+    setActiveModule('collection')
+  }
+
   const homeCards: HomeCard[] = [
     {
       id: 'sku',
       className: 'dash-module-btn--sku',
       label: 'Stock Keeping Unit',
       icon: skuModuleIcon,
-      onClick: () => setActiveModule('sku'),
+      onClick: () => undefined,
+    },
+    {
+      id: 'customerTransaction',
+      className: 'dash-module-btn--customerTransaction',
+      label: 'Customer Transaction',
+      icon: factoryModuleIcon,
+      onClick: () => undefined,
+    },
+    {
+      id: 'routeTransactions',
+      className: 'dash-module-btn--routeTransactions',
+      label: 'Route Transactions',
+      icon: inventoryModuleIcon,
+      onClick: () => undefined,
+    },
+    {
+      id: 'fullGoodsDailyIn',
+      className: 'dash-module-btn--fullGoodsDailyIn',
+      label: 'Full Goods Daily In',
+      icon: fullGoodsModuleIcon,
+      onClick: () => undefined,
+    },
+    {
+      id: 'emptiesDailyIn',
+      className: 'dash-module-btn--emptiesDailyIn',
+      label: 'Empties Daily In',
+      icon: emptiesModuleIcon,
+      onClick: () => undefined,
+    },
+    {
+      id: 'emptiesDailyOut',
+      className: 'dash-module-btn--emptiesDailyOut',
+      label: 'Empties Daily Out',
+      icon: emptiesModuleIcon,
+      onClick: () => undefined,
+    },
+    {
+      id: 'customerPrintables',
+      className: 'dash-module-btn--customerPrintables',
+      label: 'Customer Printables',
+      icon: skuPrintablesModuleIcon,
+      onClick: () => setActiveModule('customerPrintables'),
+    },
+    {
+      id: 'routePrintables',
+      className: 'dash-module-btn--routePrintables',
+      label: 'Route Printables',
+      icon: fullsPrintablesModuleIcon,
+      onClick: () => setActiveModule('routePrintables'),
+    },
+    {
+      id: 'dslPrintables',
+      className: 'dash-module-btn--dslPrintables',
+      label: 'DSL Printables',
+      icon: skuPrintablesModuleIcon,
+      onClick: () => setActiveModule('dslPrintables'),
     },
     {
       id: 'fth',
@@ -228,19 +504,37 @@ export function DashboardPage() {
       className: 'dash-module-btn--actualInventory',
       label: 'Actual Inventory',
       icon: actualInventoryModuleIcon,
-      onClick: () => setActiveModule('actualInventory'),
+      onClick: () => undefined,
     },
     {
       id: 'inventory',
       className: 'dash-module-btn--inventory',
       label: 'Inventory',
       icon: inventoryModuleIcon,
-      onClick: () => setInventoryOpen(true),
+      onClick: () => undefined,
+    },
+    {
+      id: 'collection',
+      className: 'dash-module-btn--collection',
+      label: 'Collection',
+      icon: fthModuleIcon,
+      onClick: () => undefined,
     },
   ]
 
   const visibleHomeCards = homeCards.filter((card) => allowedCards.includes(card.id))
-  const skuStackIds = new Set<DashboardCardId>(['sku', 'fth', 'fullGoods', 'empties', 'bo'])
+  const skuStackIds = new Set<DashboardCardId>([
+    'sku',
+    'customerTransaction',
+    'routeTransactions',
+    'fullGoodsDailyIn',
+    'emptiesDailyIn',
+    'emptiesDailyOut',
+    'fth',
+    'fullGoods',
+    'empties',
+    'bo',
+  ])
   const isCompactModules = needsWorkspacePicker && workspaceBranch === 'Davao'
   const skuStackCards = visibleHomeCards.filter((card) => skuStackIds.has(card.id))
   const otherHomeCards = visibleHomeCards.filter((card) => !skuStackIds.has(card.id))
@@ -252,7 +546,57 @@ export function DashboardPage() {
         key={card.id}
         type="button"
         className={`dash-module-btn ${card.className}`}
-        onClick={card.onClick}
+        onClick={(event) => {
+          if (card.id === 'sku') {
+            if (effectiveBranch === 'Nabunturan') {
+              openSkuMenu(event)
+              return
+            }
+            setActiveModule('sku')
+            return
+          }
+          if (card.id === 'customerTransaction') {
+            openCustomerTxMenu(event)
+            return
+          }
+          if (card.id === 'routeTransactions') {
+            openRouteTxMenu(event)
+            return
+          }
+          if (card.id === 'fullGoodsDailyIn') {
+            openDailyGoodsMenu('fullGoodsDailyIn', event)
+            return
+          }
+          if (card.id === 'emptiesDailyIn') {
+            openDailyGoodsMenu('emptiesDailyIn', event)
+            return
+          }
+          if (card.id === 'emptiesDailyOut') {
+            openDailyGoodsMenu('emptiesDailyOut', event)
+            return
+          }
+          if (card.id === 'actualInventory') {
+            if (effectiveBranch === 'Nabunturan') {
+              openActualInventoryMenu(event)
+              return
+            }
+            setActiveModule('actualInventory')
+            return
+          }
+          if (card.id === 'inventory') {
+            if (effectiveBranch === 'Nabunturan') {
+              openInventoryMenu(event)
+              return
+            }
+            setInventoryOpen(true)
+            return
+          }
+          if (card.id === 'collection') {
+            openCollectionMenu(event)
+            return
+          }
+          card.onClick()
+        }}
       >
         <span className="dash-module-btn__icon">
           <ModulePhotoIcon src={card.icon} />
@@ -262,9 +606,11 @@ export function DashboardPage() {
     )
   }
 
+  const showHomeChrome = activeModule === 'home'
+
   return (
     <div className="dash-shell">
-      <div className="dash-bg" aria-hidden="true" />
+      {showHomeChrome ? <div className="dash-bg" aria-hidden="true" /> : null}
       <div className="dash-glow" aria-hidden="true" />
 
       <header className="dash-header">
@@ -375,211 +721,170 @@ export function DashboardPage() {
           )
         ) : null}
 
-        {activeModule !== 'home' ? (
-          <div className="dash-module-bar">
-            {needsWorkspacePicker && workspaceBranch ? (
-              <button type="button" className="dash-module-tab" onClick={goHome}>
-                {workspaceBranch}
-              </button>
-            ) : null}
-            {canAccess('sku') ? (
-              <button
-                type="button"
-                className={
-                  activeModule === 'sku' ? 'dash-module-tab is-active' : 'dash-module-tab'
-                }
-                onClick={() => setActiveModule('sku')}
-              >
-                Stock Keeping Unit
-              </button>
-            ) : null}
-            {canAccess('fth') ? (
-              <button
-                type="button"
-                className={
-                  activeModule === 'fth' ? 'dash-module-tab is-active' : 'dash-module-tab'
-                }
-                onClick={() => setActiveModule('fth')}
-              >
-                FTH Discount
-              </button>
-            ) : null}
-            {canAccess('fullGoods') ? (
-              <button
-                type="button"
-                className={
-                  activeModule === 'fullGoods' ? 'dash-module-tab is-active' : 'dash-module-tab'
-                }
-                onClick={() => setActiveModule('fullGoods')}
-              >
-                Full Goods In/Out
-              </button>
-            ) : null}
-            {canAccess('empties') ? (
-              <button
-                type="button"
-                className={
-                  activeModule === 'empties' ? 'dash-module-tab is-active' : 'dash-module-tab'
-                }
-                onClick={() => setActiveModule('empties')}
-              >
-                Empties In/Out
-              </button>
-            ) : null}
-            {canAccess('bo') ? (
-              <button
-                type="button"
-                className={activeModule === 'bo' ? 'dash-module-tab is-active' : 'dash-module-tab'}
-                onClick={() => setActiveModule('bo')}
-              >
-                BO (Bad Order)
-              </button>
-            ) : null}
-            {isActualInventoryModule && canAccess('actualInventory') ? (
-              <button
-                type="button"
-                className="dash-module-tab is-active"
-                onClick={() => setActiveModule('actualInventory')}
-              >
-                Actual Inventory
-              </button>
-            ) : null}
-            {isInventoryModule && canAccess('inventory') ? (
-              <button
-                type="button"
-                className="dash-module-tab is-active"
-                onClick={() => setActiveModule('inventory')}
-              >
-                {inventoryCategory} Inventory
-              </button>
-            ) : null}
-            {isFactoryModule && canAccess('factory') ? (
-              <button
-                type="button"
-                className="dash-module-tab is-active"
-                onClick={() => setActiveModule('factoryTransaction')}
-              >
-                {factoryTransactionTitle(factoryCategory)} Fractory
-              </button>
-            ) : null}
-            {isFtPrintablesModule && canAccess('ftPrintables') ? (
-              <button
-                type="button"
-                className="dash-module-tab is-active"
-                onClick={() => setActiveModule('ftPrintables')}
-              >
-                FT Printables
-              </button>
-            ) : null}
-            {isPrintableModule ? (
-              <>
-                {canAccess('skuPrintables') ? (
-                  <button
-                    type="button"
-                    className={
-                      activeModule === 'skuPrintables'
-                        ? 'dash-module-tab is-active'
-                        : 'dash-module-tab'
-                    }
-                    onClick={() => setActiveModule('skuPrintables')}
-                  >
-                    SKU Printables
-                  </button>
-                ) : null}
-                {canAccess('fullsPrintables') ? (
-                  <button
-                    type="button"
-                    className={
-                      activeModule === 'fullsPrintables'
-                        ? 'dash-module-tab is-active'
-                        : 'dash-module-tab'
-                    }
-                    onClick={() => setActiveModule('fullsPrintables')}
-                  >
-                    Fulls In/Out
-                  </button>
-                ) : null}
-                {canAccess('fullsPrintables') ? (
-                  <button
-                    type="button"
-                    className={
-                      activeModule === 'bLiquidationFulls'
-                        ? 'dash-module-tab is-active'
-                        : 'dash-module-tab'
-                    }
-                    onClick={() => setActiveModule('bLiquidationFulls')}
-                  >
-                    Full B-Liquidation
-                  </button>
-                ) : null}
-                {canAccess('emptiesPrintables') ? (
-                  <button
-                    type="button"
-                    className={
-                      activeModule === 'emptiesPrintables'
-                        ? 'dash-module-tab is-active'
-                        : 'dash-module-tab'
-                    }
-                    onClick={() => setActiveModule('emptiesPrintables')}
-                  >
-                    Empties In/Out
-                  </button>
-                ) : null}
-                {canAccess('emptiesPrintables') ? (
-                  <button
-                    type="button"
-                    className={
-                      activeModule === 'bLiquidationEmpties'
-                        ? 'dash-module-tab is-active'
-                        : 'dash-module-tab'
-                    }
-                    onClick={() => setActiveModule('bLiquidationEmpties')}
-                  >
-                    Empties B-Liquidation
-                  </button>
-                ) : null}
-              </>
-            ) : null}
-          </div>
+        {activeModule === 'sku' && canAccess('sku') ? (
+          <CatalogPanel branch={effectiveBranch} view="items" />
         ) : null}
-
-        {activeModule === 'sku' && canAccess('sku') ? <CatalogPanel /> : null}
+        {activeModule === 'skuCustomersDiscount' && canAccess('sku') && effectiveBranch ? (
+          <CustomersDiscountPanel branch={effectiveBranch} />
+        ) : null}
+        {activeModule === 'customerTransaction' && canAccess('customerTransaction') ? (
+          <CustomerTransactionPanel
+            company={customerTxCompany}
+            branch={effectiveBranch}
+            onClose={goHome}
+            onCompanyChange={setCustomerTxCompany}
+          />
+        ) : null}
+        {activeModule === 'routeTransactions' && canAccess('routeTransactions') ? (
+          <RouteTransactionPanel
+            option={routeTxOption}
+            branch={effectiveBranch}
+            onClose={goHome}
+          />
+        ) : null}
         {activeModule === 'skuPrintables' && canAccess('skuPrintables') ? (
           <SkuPrintablesPanel />
         ) : null}
+        {activeModule === 'customerPrintables' && canAccess('customerPrintables') ? (
+          <CustomerPrintablesPanel branch={effectiveBranch} />
+        ) : null}
+        {activeModule === 'routePrintables' && canAccess('routePrintables') ? (
+          <RoutePrintablesPanel branch={effectiveBranch} />
+        ) : null}
+        {activeModule === 'dslPrintables' && canAccess('dslPrintables') ? (
+          <DslPrintablesPanel branch={effectiveBranch} />
+        ) : null}
         {activeModule === 'actualInventory' && canAccess('actualInventory') ? (
-          <ActualInventoryPanel />
+          <ActualInventoryPanel
+            branch={effectiveBranch}
+            company={effectiveBranch === 'Nabunturan' ? actualInventoryCompany : null}
+          />
         ) : null}
         {activeModule === 'inventory' && canAccess('inventory') ? (
-          <InventoryPreviewPanel category={inventoryCategory} />
+          <InventoryPreviewPanel category={inventoryCategory} branch={effectiveBranch} />
+        ) : null}
+        {activeModule === 'collection' && canAccess('collection') ? (
+          <CollectionPanel
+            branch={effectiveBranch}
+            option={collectionOption}
+            onClose={goHome}
+          />
         ) : null}
         {activeModule === 'factoryTransaction' && canAccess('factory') ? (
-          <FactoryTransactionPanel category={factoryCategory} />
+          <FactoryTransactionPanel category={factoryCategory} branch={effectiveBranch} />
         ) : null}
         {activeModule === 'ftPrintables' && canAccess('ftPrintables') ? (
           <FtPrintablesPanel />
         ) : null}
         {activeModule === 'fth' && canAccess('fth') ? <FthDiscountPanel /> : null}
         {activeModule === 'fullGoods' && canAccess('fullGoods') ? (
-          <FullGoodsPanel mode="fullGoods" />
+          <FullGoodsPanel mode="fullGoods" branch={effectiveBranch} />
+        ) : null}
+        {activeModule === 'fullGoodsDailyIn' && canAccess('fullGoodsDailyIn') ? (
+          <FullGoodsPanel
+            mode="fullGoods"
+            branch={effectiveBranch}
+            lockedMovementType="in"
+            preferredCompany={dailyGoodsCompany}
+            onClose={goHome}
+          />
         ) : null}
         {activeModule === 'empties' && canAccess('empties') ? (
-          <FullGoodsPanel mode="empties" />
+          <FullGoodsPanel mode="empties" branch={effectiveBranch} />
         ) : null}
-        {activeModule === 'bo' && canAccess('bo') ? <BoBadOrderPanel /> : null}
+        {activeModule === 'emptiesDailyIn' && canAccess('emptiesDailyIn') ? (
+          <FullGoodsPanel
+            mode="empties"
+            branch={effectiveBranch}
+            lockedMovementType="in"
+            preferredCompany={dailyGoodsCompany}
+            onClose={goHome}
+          />
+        ) : null}
+        {activeModule === 'emptiesDailyOut' && canAccess('emptiesDailyOut') ? (
+          <FullGoodsPanel
+            mode="empties"
+            branch={effectiveBranch}
+            lockedMovementType="out"
+            preferredCompany={dailyGoodsCompany}
+            onClose={goHome}
+          />
+        ) : null}
+        {activeModule === 'bo' && canAccess('bo') ? (
+          <BoBadOrderPanel branch={effectiveBranch} />
+        ) : null}
         {activeModule === 'fullsPrintables' && canAccess('fullsPrintables') ? (
-          <FullsPrintablesPanel mode="fulls" />
+          <FullsPrintablesPanel mode="fulls" branch={effectiveBranch} />
         ) : null}
         {activeModule === 'emptiesPrintables' && canAccess('emptiesPrintables') ? (
-          <FullsPrintablesPanel mode="empties" />
+          <FullsPrintablesPanel mode="empties" branch={effectiveBranch} />
         ) : null}
         {activeModule === 'bLiquidationFulls' && canAccess('fullsPrintables') ? (
-          <BLiquidationPrintablesPanel mode="fulls" />
+          <BLiquidationPrintablesPanel mode="fulls" branch={effectiveBranch} />
         ) : null}
         {activeModule === 'bLiquidationEmpties' && canAccess('emptiesPrintables') ? (
-          <BLiquidationPrintablesPanel mode="empties" />
+          <BLiquidationPrintablesPanel mode="empties" branch={effectiveBranch} />
         ) : null}
       </main>
+
+      <SkuOptionsPopover
+        open={skuMenuOpen}
+        top={skuMenuPos.top}
+        left={skuMenuPos.left}
+        onClose={() => setSkuMenuOpen(false)}
+        onSelect={handleSkuOption}
+      />
+
+      <CustomerTransactionOptionsPopover
+        open={customerTxMenuOpen}
+        top={customerTxMenuPos.top}
+        left={customerTxMenuPos.left}
+        onClose={() => setCustomerTxMenuOpen(false)}
+        onSelect={handleCustomerTxOption}
+      />
+
+      <RouteTransactionOptionsPopover
+        open={routeTxMenuOpen}
+        top={routeTxMenuPos.top}
+        left={routeTxMenuPos.left}
+        onClose={() => setRouteTxMenuOpen(false)}
+        onSelect={handleRouteTxOption}
+      />
+
+      {dailyGoodsMenuKind ? (
+        <DailyGoodsOptionsPopover
+          open
+          kind={dailyGoodsMenuKind}
+          top={dailyGoodsMenuPos.top}
+          left={dailyGoodsMenuPos.left}
+          onClose={() => setDailyGoodsMenuKind(null)}
+          onSelect={handleDailyGoodsOption}
+        />
+      ) : null}
+
+      <ActualInventoryOptionsPopover
+        open={actualInventoryMenuOpen}
+        top={actualInventoryMenuPos.top}
+        left={actualInventoryMenuPos.left}
+        onClose={() => setActualInventoryMenuOpen(false)}
+        onSelect={handleActualInventoryOption}
+      />
+
+      <InventoryOptionsPopover
+        open={inventoryMenuOpen}
+        top={inventoryMenuPos.top}
+        left={inventoryMenuPos.left}
+        onClose={() => setInventoryMenuOpen(false)}
+        onSelect={handleInventoryMenuSelect}
+      />
+
+      <CollectionOptionsPopover
+        open={collectionMenuOpen}
+        top={collectionMenuPos.top}
+        left={collectionMenuPos.left}
+        onClose={() => setCollectionMenuOpen(false)}
+        onSelect={handleCollectionOption}
+      />
 
       <PrintablesChooserModal
         open={printablesOpen}
@@ -604,12 +909,14 @@ export function DashboardPage() {
         <AddUserModal open={addUserOpen} onClose={() => setAddUserOpen(false)} />
       ) : null}
 
-      <footer className="dash-footer">
-        <p>
-          CMJgo Web Application · Powered by CMJ-MIS · Developed by Mark Morales · All rights
-          reserved 2026
-        </p>
-      </footer>
+      {showHomeChrome ? (
+        <footer className="dash-footer">
+          <p>
+            CMJgo Web Application · Powered by CMJ-MIS · Developed by Mark Morales · All rights
+            reserved 2026
+          </p>
+        </footer>
+      ) : null}
     </div>
   )
 }

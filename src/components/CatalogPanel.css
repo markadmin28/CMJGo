@@ -529,6 +529,26 @@
   box-shadow: none;
 }
 
+.product-chip--with-tx {
+  grid-template-columns: auto 1fr auto auto auto;
+}
+
+.product-tx-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  cursor: pointer;
+}
+
+.product-tx-check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
 .product-chip:last-child {
   border-bottom: none;
 }

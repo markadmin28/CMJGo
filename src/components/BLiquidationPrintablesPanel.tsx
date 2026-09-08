@@ -1,4 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { UserBranch } from '../lib/branches'
+import {
+  buildActualBeginningLookup,
+  previousMonthStart,
+  listActualInventoriesForMonth,
+  type ActualBeginningLookup,
+} from '../lib/actualInventory'
 import {
   computeFullBLiquidationSummary,
   computeProductRemains,
@@ -10,6 +17,13 @@ import {
   type ProductRemainRow,
 } from '../lib/bLiquidation'
 import { listCatalogTree } from '../lib/catalog'
+import {
+  customerTxToPrintableMovement,
+  printableCategoryToCustomerCompany,
+} from '../lib/customerTxAsMovement'
+import { listCustomerTransactionsWithItemsInRange } from '../lib/customerTxSave'
+import { routeSummaryToPrintableMovement } from '../lib/routeSummaryAsMovement'
+import { listRouteSummariesWithItemsInRange } from '../lib/routeSummarySave'
 import { listFullGoodsMovements } from '../lib/fullGoods'
 import type { FullGoodsMovement } from '../types/fullGoods'
 import './PrintablesPanel.css'
@@ -67,6 +81,7 @@ function formatDisplayDate(isoDate: string) {
 
 type BLiquidationPrintablesPanelProps = {
   mode?: BLiquidationMode
+  branch?: UserBranch | null
 }
 
 function GoodsLabel({ goodsLabel, suffix }: { goodsLabel: string; suffix: string }) {
@@ -229,15 +244,19 @@ function BLiquidationBreakdown({
   dateTo,
   rows,
   goodsLabel,
+  summaryRemain,
 }: {
   category: string
   dateTo: string
   rows: ProductRemainRow[]
   goodsLabel: string
+  summaryRemain: number
 }) {
   const sortedRows = sortRowsBySubcategory(rows)
   const columns = splitBreakdownColumns(sortedRows, category)
-  const totalRemain = rows.reduce((sum, row) => sum + row.remain, 0)
+  // Use the same remain as the summary table so footer never drifts from
+  // "(Empties) total stock remain" when SKU matching is imperfect.
+  const totalRemain = summaryRemain
   const normalizedCategory = category.trim().toLowerCase()
   const hideSubcategory =
     goodsLabel.trim().toLowerCase() === 'empties' ||
@@ -329,11 +348,18 @@ function resolveCategoryProducts(
       matchesEmptiesCatalogName(sub.name, selectedCategory),
     )
     if (!match) return []
-    return match.products.map((product) => ({
-      id: product.id,
-      name: product.name,
-      subcategoryName: match.name,
-    }))
+    const seen = new Set<string>()
+    return match.products.flatMap((product) => {
+      if (seen.has(product.id)) return []
+      seen.add(product.id)
+      return [
+        {
+          id: product.id,
+          name: product.name,
+          subcategoryName: match.name,
+        },
+      ]
+    })
   }
 
   const match = catalog.find(
@@ -341,18 +367,30 @@ function resolveCategoryProducts(
       category.name.trim().toLowerCase() === selectedCategory.trim().toLowerCase() ||
       category.name.trim().toLowerCase().startsWith(selectedCategory.trim().toLowerCase()),
   )
+  const seen = new Set<string>()
   return (
     match?.subcategories.flatMap((sub) =>
-      sub.products.map((product) => ({
-        id: product.id,
-        name: product.name,
-        subcategoryName: sub.name,
-      })),
+      sub.products.flatMap((product) => {
+        if (seen.has(product.id)) return []
+        seen.add(product.id)
+        return [
+          {
+            id: product.id,
+            name: product.name,
+            subcategoryName: sub.name,
+          },
+        ]
+      }),
     ) ?? []
   )
 }
 
-export function BLiquidationPrintablesPanel({ mode = 'fulls' }: BLiquidationPrintablesPanelProps) {
+export function BLiquidationPrintablesPanel({
+  mode = 'fulls',
+  branch = 'Davao',
+}: BLiquidationPrintablesPanelProps) {
+  const catalogBranch = branch ?? 'Davao'
+  const includeCustomerTx = catalogBranch === 'Nabunturan'
   const categories = mode === 'empties' ? [...EMPTIES_CATEGORIES] : [...FULLS_CATEGORIES]
   const [selectedCategory, setSelectedCategory] = useState(categories[0])
   const [dateFrom, setDateFrom] = useState(todayIsoDate())
@@ -364,29 +402,85 @@ export function BLiquidationPrintablesPanel({ mode = 'fulls' }: BLiquidationPrin
   const [categoryProducts, setCategoryProducts] = useState<
     Array<{ id: string; name: string; subcategoryName: string }>
   >([])
+  const [actualBeginning, setActualBeginning] = useState<ActualBeginningLookup | null>(null)
 
   const modeTitle = mode === 'empties' ? 'Empties B-Liquidation' : 'Full B-Liquidation'
   const goodsLabel = mode === 'empties' ? 'Empties' : 'Fulls'
   const panelTitle = `${selectedCategory} ${modeTitle} Printables`
+  const customerCompany = includeCustomerTx
+    ? printableCategoryToCustomerCompany(selectedCategory)
+    : null
 
   const summary = useMemo(() => {
-    return computeFullBLiquidationSummary(movements, selectedCategory, dateTo, mode)
-  }, [movements, selectedCategory, dateTo, mode])
+    return computeFullBLiquidationSummary(movements, selectedCategory, dateTo, mode, {
+      products: categoryProducts,
+      actualBeginning: includeCustomerTx ? actualBeginning : null,
+    })
+  }, [
+    movements,
+    selectedCategory,
+    dateTo,
+    mode,
+    categoryProducts,
+    actualBeginning,
+    includeCustomerTx,
+  ])
 
   const productRemains = useMemo(() => {
-    const rows = computeProductRemains(
+    let rows = computeProductRemains(
       movements,
       categoryProducts,
       selectedCategory,
       dateTo,
       mode,
+      includeCustomerTx ? actualBeginning : null,
     )
-    return mode === 'empties' ? prepareEmptiesBreakdownRows(rows, selectedCategory) : rows
-  }, [movements, categoryProducts, selectedCategory, dateTo, mode])
+    // Checked-SKU catalogs omit unchecked products; drop orphan rows so
+    // breakdown only lists products enabled for this branch.
+    rows = rows.filter((row) => !row.productId.startsWith('orphan:'))
+    return mode === 'empties' ? prepareEmptiesBreakdownRows(rows) : rows
+  }, [
+    movements,
+    categoryProducts,
+    selectedCategory,
+    dateTo,
+    mode,
+    actualBeginning,
+    includeCustomerTx,
+  ])
 
   useEffect(() => {
     setSelectedCategory(mode === 'empties' ? EMPTIES_CATEGORIES[0] : FULLS_CATEGORIES[0])
   }, [mode])
+
+  useEffect(() => {
+    if (!includeCustomerTx) {
+      setActualBeginning(null)
+      return
+    }
+
+    let cancelled = false
+
+    async function loadActuals() {
+      const result = await listActualInventoriesForMonth(
+        previousMonthStart(dateTo),
+        catalogBranch,
+      )
+      if (cancelled) return
+      if (result.missingTable || result.error) {
+        setActualBeginning(null)
+        return
+      }
+      setActualBeginning(
+        buildActualBeginningLookup(result.data.flatMap((detail) => detail.items)),
+      )
+    }
+
+    void loadActuals()
+    return () => {
+      cancelled = true
+    }
+  }, [includeCustomerTx, catalogBranch, dateTo])
 
   useEffect(() => {
     let cancelled = false
@@ -395,13 +489,55 @@ export function BLiquidationPrintablesPanel({ mode = 'fulls' }: BLiquidationPrin
       setLoading(true)
       setLoadError(null)
       const [movementsResult, catalogResult] = await Promise.all([
-        listFullGoodsMovements(),
-        listCatalogTree(),
+        listFullGoodsMovements(catalogBranch),
+        // Nabunturan/Davao: only products checked in SKU for this branch.
+        listCatalogTree(catalogBranch, { forTransactions: true }),
       ])
       if (cancelled) return
 
-      setMovements(movementsResult.data)
-      setLoadError(movementsResult.error ?? catalogResult.error)
+      const branchMovements = (movementsResult.data ?? []).filter(
+        (row) => (row.branch || 'Davao') === catalogBranch,
+      )
+
+      let nextMovements = branchMovements
+      let customerError: string | null = null
+
+      if (includeCustomerTx && customerCompany) {
+        // Nabunturan: fulls sales = Out; empties returns = In (customer TX + route summary).
+        const [customerResult, routeResult] = await Promise.all([
+          listCustomerTransactionsWithItemsInRange(
+            catalogBranch,
+            '2020-01-01',
+            todayIsoDate(),
+            customerCompany,
+          ),
+          listRouteSummariesWithItemsInRange(catalogBranch, '2020-01-01', todayIsoDate()),
+        ])
+        if (cancelled) return
+        customerError = customerResult.error ?? routeResult.error
+        const customerMovements = customerResult.data.map(({ transaction, items }) =>
+          customerTxToPrintableMovement(transaction, items, mode, selectedCategory),
+        )
+        const routeMovements = routeResult.data
+          .map(({ summary, items }) =>
+            routeSummaryToPrintableMovement(
+              summary,
+              items,
+              mode,
+              selectedCategory,
+              customerCompany,
+            ),
+          )
+          .filter((row): row is NonNullable<typeof row> => row != null)
+        const byId = new Map<string, FullGoodsMovement>()
+        for (const row of branchMovements) byId.set(row.id, row)
+        for (const row of customerMovements) byId.set(row.id, row)
+        for (const row of routeMovements) byId.set(row.id, row)
+        nextMovements = [...byId.values()]
+      }
+
+      setMovements(nextMovements)
+      setLoadError(movementsResult.error ?? catalogResult.error ?? customerError)
       setCategoryProducts(
         resolveCategoryProducts(catalogResult.data, selectedCategory, mode),
       )
@@ -412,7 +548,7 @@ export function BLiquidationPrintablesPanel({ mode = 'fulls' }: BLiquidationPrin
     return () => {
       cancelled = true
     }
-  }, [selectedCategory, mode])
+  }, [selectedCategory, mode, catalogBranch, includeCustomerTx, customerCompany])
   useEffect(() => {
     function onAfterPrint() {
       setPrinting(false)
@@ -583,7 +719,7 @@ export function BLiquidationPrintablesPanel({ mode = 'fulls' }: BLiquidationPrin
         <div className="fulls-print-sheet print-only b-liquidation-print-sheet" aria-hidden="true">
           <header className="fulls-print-sheet__header">
             <p className="fulls-print-sheet__company">The CMJ Corporation</p>
-            <p className="fulls-print-sheet__branch">CMJ Davao</p>
+            <p className="fulls-print-sheet__branch">CMJ {catalogBranch}</p>
             <p className="fulls-print-sheet__title is-out">
               {selectedCategory} {modeTitle}
             </p>
@@ -604,6 +740,7 @@ export function BLiquidationPrintablesPanel({ mode = 'fulls' }: BLiquidationPrin
                 dateTo={dateTo}
                 rows={productRemains}
                 goodsLabel={goodsLabel}
+                summaryRemain={summary.totalStockRemain}
               />
             </>
           ) : null}

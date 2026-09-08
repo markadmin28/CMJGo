@@ -1,0 +1,107 @@
+.dsl-printables__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+  margin: 0;
+}
+
+.dsl-printables__summary span {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 0.5rem;
+  border: 1px solid rgba(169, 196, 212, 0.95);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  color: #334155;
+}
+
+.dsl-printables__source {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 0.4rem;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.dsl-printables__source--customer {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.dsl-printables__source--route {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.dsl-printables__source--fullsDailyIn {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.dsl-printables__source--emptiesDailyIn {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.dsl-printables__source--emptiesDailyOut {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.dsl-printables__table th:nth-child(1),
+.dsl-printables__table td:nth-child(1) {
+  width: 12%;
+}
+
+.dsl-printables__table th:nth-child(2),
+.dsl-printables__table td:nth-child(2) {
+  width: 14%;
+}
+
+.dsl-printables__table th:nth-child(3),
+.dsl-printables__table td:nth-child(3) {
+  width: 24%;
+  min-width: 8.75rem;
+}
+
+.dsl-printables__table th:nth-child(4),
+.dsl-printables__table td:nth-child(4) {
+  width: 12%;
+}
+
+.dsl-printables__table th:nth-child(5),
+.dsl-printables__table td:nth-child(5) {
+  width: 11%;
+}
+
+@media print {
+  .dsl-printables-batch .fulls-print-sheet {
+    display: block !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Let compact day slips share a page when they fit (do not force a new page). */
+  .dsl-printables-batch .fulls-print-sheet--followed-wrap {
+    margin-bottom: 0.55rem;
+    padding-bottom: 0.35rem;
+    break-after: auto;
+    page-break-after: auto;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .dsl-printables-batch .ctx-printables-batch__item--followed,
+  .dsl-printables-batch .rsu-printables-batch__item--followed {
+    margin-bottom: 0.55rem;
+    padding-bottom: 0.35rem;
+    break-after: auto;
+    page-break-after: auto;
+  }
+}

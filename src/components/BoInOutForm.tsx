@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { listCatalogTree } from '../lib/catalog'
+import type { UserBranch } from '../lib/branches'
 import { listLocations } from '../lib/fullGoods'
 import type { FullGoodsLocation } from '../types/fullGoods'
 import {
@@ -30,6 +31,7 @@ import './FullGoodsPanel.css'
 
 type BoInOutFormProps = {
   meta: BoInOutMeta
+  branch?: UserBranch | null
   onClose: () => void
 }
 
@@ -125,8 +127,9 @@ function formatDateAdded(value: string) {
   return `${yyyy}-${mm}-${dd} ${hh}:${min}`
 }
 
-export function BoInOutForm({ meta, onClose }: BoInOutFormProps) {
+export function BoInOutForm({ meta, branch = 'Davao', onClose }: BoInOutFormProps) {
   const { user } = useAuth()
+  const catalogBranch = branch ?? 'Davao'
   const [date, setDate] = useState(todayBoDateInput)
   const [truckNo, setTruckNo] = useState('')
   const [loadNo, setLoadNo] = useState('')
@@ -191,7 +194,10 @@ export function BoInOutForm({ meta, onClose }: BoInOutFormProps) {
     async function loadCatalogAndLocations() {
       setLoadingCatalog(true)
       setCatalogError(null)
-      const [catalogResult, locationsResult] = await Promise.all([listCatalogTree(), listLocations()])
+      const [catalogResult, locationsResult] = await Promise.all([
+        listCatalogTree(catalogBranch, { forTransactions: true }),
+        listLocations(catalogBranch),
+      ])
       if (cancelled) return
 
       if (locationsResult.error && !locationsResult.missingTable) {
@@ -232,7 +238,7 @@ export function BoInOutForm({ meta, onClose }: BoInOutFormProps) {
     return () => {
       cancelled = true
     }
-  }, [meta.company, catalogCategory])
+  }, [meta.company, catalogCategory, catalogBranch])
 
   function setQty(id: string, value: string) {
     setQtys((prev) => ({ ...prev, [id]: value }))

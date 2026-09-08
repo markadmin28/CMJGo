@@ -3,6 +3,14 @@ import { isUserBranch, type UserBranch } from './branches'
 /** Home dashboard card keys (not including printable chooser sub-options). */
 export type DashboardCardId =
   | 'sku'
+  | 'customerTransaction'
+  | 'routeTransactions'
+  | 'customerPrintables'
+  | 'routePrintables'
+  | 'dslPrintables'
+  | 'fullGoodsDailyIn'
+  | 'emptiesDailyIn'
+  | 'emptiesDailyOut'
   | 'factory'
   | 'ftPrintables'
   | 'skuPrintables'
@@ -10,6 +18,7 @@ export type DashboardCardId =
   | 'emptiesPrintables'
   | 'actualInventory'
   | 'inventory'
+  | 'collection'
   | 'fth'
   | 'fullGoods'
   | 'empties'
@@ -42,8 +51,22 @@ export const MARAGUSAN_DAVAO_WORKSPACE_CARDS: readonly DashboardCardId[] = [
 const BRANCH_DASHBOARD_CARDS: Record<UserBranch, readonly DashboardCardId[]> = {
   Davao: DAVAO_DASHBOARD_CARDS,
   Maragusan: [],
-  // Nabunturan modules (coming soon).
-  Nabunturan: [],
+  Nabunturan: [
+    'sku',
+    'customerTransaction',
+    'routeTransactions',
+    'fullGoodsDailyIn',
+    'emptiesDailyIn',
+    'emptiesDailyOut',
+    'customerPrintables',
+    'routePrintables',
+    'dslPrintables',
+    'fullsPrintables',
+    'emptiesPrintables',
+    'actualInventory',
+    'inventory',
+    'collection',
+  ],
 }
 
 /** Login branches that first choose a workspace card before modules. */

@@ -1,21 +1,33 @@
 -- CMJGo Actual Inventory
 -- Run this in Supabase SQL Editor:
 -- https://supabase.com/dashboard/project/nuieqalrgphmfjrpqnjw/sql/new
+-- If you already ran an older version, also run actual_inventory_branch_schema.sql.
 
 create table if not exists public.actual_inventories (
   id uuid primary key default gen_random_uuid(),
+  branch text not null default 'Davao'
+    check (branch in ('Davao', 'Nabunturan', 'Maragusan')),
   category text not null,
   as_of_month date not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   created_by uuid references auth.users (id) on delete set null,
   constraint actual_inventories_category_not_blank check (char_length(trim(category)) > 0),
-  constraint actual_inventories_month_is_first_day check (extract(day from as_of_month) = 1),
-  constraint actual_inventories_category_month_unique unique (category, as_of_month)
+  constraint actual_inventories_month_is_first_day check (extract(day from as_of_month) = 1)
 );
+
+-- Prefer branch-scoped uniqueness (replaces older category+month only unique).
+alter table public.actual_inventories
+  drop constraint if exists actual_inventories_category_month_unique;
+drop index if exists public.actual_inventories_category_month_unique;
+create unique index if not exists actual_inventories_branch_category_month_unique
+  on public.actual_inventories (branch, category, as_of_month);
 
 create index if not exists actual_inventories_category_month_idx
   on public.actual_inventories (category, as_of_month desc);
+
+create index if not exists actual_inventories_branch_month_idx
+  on public.actual_inventories (branch, as_of_month desc);
 
 create table if not exists public.actual_inventory_items (
   id uuid primary key default gen_random_uuid(),

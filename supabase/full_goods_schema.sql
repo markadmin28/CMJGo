@@ -10,8 +10,40 @@ create table if not exists public.full_goods_locations (
   constraint full_goods_locations_name_not_blank check (char_length(trim(name)) > 0)
 );
 
-create unique index if not exists full_goods_locations_name_unique
-  on public.full_goods_locations (lower(name));
+-- Branch separation: Nabunturan locations must not share Davao's list.
+alter table public.full_goods_locations
+  add column if not exists branch text;
+
+update public.full_goods_locations
+set branch = 'Davao'
+where branch is null or trim(branch) = '';
+
+alter table public.full_goods_locations
+  alter column branch set default 'Davao';
+
+alter table public.full_goods_locations
+  alter column branch set not null;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'full_goods_locations_branch_check'
+  ) then
+    alter table public.full_goods_locations
+      add constraint full_goods_locations_branch_check
+      check (branch in ('Davao', 'Nabunturan', 'Maragusan'));
+  end if;
+end $$;
+
+-- Name unique per branch (drop older global unique index).
+drop index if exists public.full_goods_locations_name_unique;
+create unique index if not exists full_goods_locations_branch_name_unique
+  on public.full_goods_locations (branch, lower(name));
+
+create index if not exists full_goods_locations_branch_idx
+  on public.full_goods_locations (branch);
 
 create table if not exists public.full_goods_movements (
   id uuid primary key default gen_random_uuid(),
@@ -67,9 +99,38 @@ begin
   end if;
 end $$;
 
--- Older installs required list_option on movements.
 alter table public.full_goods_movements
   add column if not exists list_option text;
+
+-- Branch separation: Nabunturan daily in/out must not share Davao movement rows.
+alter table public.full_goods_movements
+  add column if not exists branch text;
+
+update public.full_goods_movements
+set branch = 'Davao'
+where branch is null or trim(branch) = '';
+
+alter table public.full_goods_movements
+  alter column branch set default 'Davao';
+
+alter table public.full_goods_movements
+  alter column branch set not null;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'full_goods_movements_branch_check'
+  ) then
+    alter table public.full_goods_movements
+      add constraint full_goods_movements_branch_check
+      check (branch in ('Davao', 'Nabunturan', 'Maragusan'));
+  end if;
+end $$;
+
+create index if not exists full_goods_movements_branch_date_idx
+  on public.full_goods_movements (branch, movement_date desc);
 
 do $$
 begin

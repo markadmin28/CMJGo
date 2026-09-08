@@ -260,7 +260,8 @@
   align-items: flex-start;
   gap: 0.5rem;
   flex: 1 1 220px;
-  min-width: 0;
+  /* Keep room for at least one card so half-gap margins cannot crush/overlap neighbors. */
+  min-width: calc(var(--dash-module-size) + 0.5rem);
 }
 
 .dash-modules-main-row .dash-module-btn {
@@ -269,9 +270,23 @@
   max-width: var(--dash-module-size);
 }
 
-.dash-modules-main-row .dash-module-btn--printables,
-.dash-modules-main-row .dash-module-btn--actualInventory {
+/* Group spacing only when the previous card is on the same row intent.
+   Avoid putting margin on Actual Inventory itself unconditionally — when it wraps,
+   that indent collides with Inventory on small/medium widths. */
+.dash-modules-main-row .dash-module-btn--printables {
   margin-left: var(--dash-module-half-gap);
+}
+
+.dash-modules-main-row .dash-module-btn--emptiesPrintables + .dash-module-btn--actualInventory {
+  margin-left: var(--dash-module-half-gap);
+}
+
+/* On mid widths the main row is too tight for half-gap indents after wrap. */
+@media (max-width: 1100px) {
+  .dash-modules-main-row .dash-module-btn--printables,
+  .dash-modules-main-row .dash-module-btn--emptiesPrintables + .dash-module-btn--actualInventory {
+    margin-left: 0;
+  }
 }
 
 .dash-modules-empty {
@@ -418,13 +433,22 @@
 .dash-module-btn--sku .dash-module-btn__icon,
 .dash-module-btn--fth .dash-module-btn__icon,
 .dash-module-btn--fullGoods .dash-module-btn__icon,
+.dash-module-btn--fullGoodsDailyIn .dash-module-btn__icon,
 .dash-module-btn--empties .dash-module-btn__icon,
+.dash-module-btn--emptiesDailyIn .dash-module-btn__icon,
+.dash-module-btn--emptiesDailyOut .dash-module-btn__icon,
 .dash-module-btn--bo .dash-module-btn__icon,
 .dash-module-btn--printables .dash-module-btn__icon,
 .dash-module-btn--skuPrintables .dash-module-btn__icon,
+.dash-module-btn--customerPrintables .dash-module-btn__icon,
+.dash-module-btn--routePrintables .dash-module-btn__icon,
+.dash-module-btn--dslPrintables .dash-module-btn__icon,
 .dash-module-btn--actualInventory .dash-module-btn__icon,
 .dash-module-btn--inventory .dash-module-btn__icon,
+.dash-module-btn--collection .dash-module-btn__icon,
 .dash-module-btn--factory .dash-module-btn__icon,
+.dash-module-btn--customerTransaction .dash-module-btn__icon,
+.dash-module-btn--routeTransactions .dash-module-btn__icon,
 .dash-module-btn--ftPrintables .dash-module-btn__icon,
 .dash-module-btn--emptiesPrintables .dash-module-btn__icon {
   padding: 0;
@@ -450,7 +474,20 @@
   box-shadow: 0 5px 14px rgba(37, 99, 235, 0.28);
 }
 
+.dash-module-btn--fullGoodsDailyIn .dash-module-btn__icon {
+  background: #dbeafe;
+  border-color: rgba(125, 211, 252, 0.9);
+  box-shadow: 0 5px 14px rgba(37, 99, 235, 0.28);
+}
+
 .dash-module-btn--empties .dash-module-btn__icon {
+  background: #fef3c7;
+  border-color: rgba(252, 211, 77, 0.9);
+  box-shadow: 0 5px 14px rgba(245, 158, 11, 0.28);
+}
+
+.dash-module-btn--emptiesDailyIn .dash-module-btn__icon,
+.dash-module-btn--emptiesDailyOut .dash-module-btn__icon {
   background: #fef3c7;
   border-color: rgba(252, 211, 77, 0.9);
   box-shadow: 0 5px 14px rgba(245, 158, 11, 0.28);
@@ -474,6 +511,24 @@
   box-shadow: 0 5px 14px rgba(59, 130, 246, 0.28);
 }
 
+.dash-module-btn--customerPrintables .dash-module-btn__icon {
+  background: #e0f2fe;
+  border-color: rgba(125, 211, 252, 0.9);
+  box-shadow: 0 5px 14px rgba(14, 165, 233, 0.28);
+}
+
+.dash-module-btn--routePrintables .dash-module-btn__icon {
+  background: #dbeafe;
+  border-color: rgba(147, 197, 253, 0.9);
+  box-shadow: 0 5px 14px rgba(37, 99, 235, 0.28);
+}
+
+.dash-module-btn--dslPrintables .dash-module-btn__icon {
+  background: #ecfdf5;
+  border-color: rgba(110, 231, 183, 0.95);
+  box-shadow: 0 5px 14px rgba(16, 185, 129, 0.28);
+}
+
 .dash-module-btn--actualInventory .dash-module-btn__icon {
   background: #ede9fe;
   border-color: rgba(221, 214, 254, 0.9);
@@ -486,10 +541,49 @@
   box-shadow: 0 5px 14px rgba(147, 51, 234, 0.28);
 }
 
-.dash-module-btn--factory .dash-module-btn__icon {
-  background: #fce7f3;
-  border-color: rgba(249, 168, 212, 0.9);
-  box-shadow: 0 5px 14px rgba(219, 39, 119, 0.28);
+.dash-module-btn--collection .dash-module-btn__icon {
+  background: #fef3c7;
+  border-color: rgba(252, 211, 77, 0.95);
+  box-shadow: 0 5px 14px rgba(217, 119, 6, 0.28);
+}
+
+.dash-module-btn--customerTransaction .dash-module-btn__icon {
+  padding: 0;
+  background: #e0f2fe;
+  border-color: rgba(125, 211, 252, 0.9);
+  box-shadow: 0 5px 14px rgba(14, 165, 233, 0.28);
+}
+
+.dash-module-btn--customerTransaction:hover {
+  border-color: #38bdf8;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 1) inset,
+    0 8px 14px rgba(14, 165, 233, 0.14),
+    0 16px 32px rgba(22, 50, 74, 0.14);
+}
+
+.dash-module-btn--routeTransactions .dash-module-btn__icon {
+  padding: 0;
+  background: #ecfeff;
+  border-color: rgba(103, 232, 249, 0.95);
+  box-shadow: 0 5px 14px rgba(6, 182, 212, 0.28);
+}
+
+.dash-module-btn--routeTransactions:hover {
+  border-color: #22d3ee;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 1) inset,
+    0 8px 14px rgba(6, 182, 212, 0.14),
+    0 16px 32px rgba(22, 50, 74, 0.14);
+}
+
+/* Extra space: SKU → Customer Transaction, Route Transactions → Full Goods Daily In */
+.dash-modules-sku-stack .dash-module-btn--customerTransaction {
+  margin-top: 0.85rem;
+}
+
+.dash-modules-sku-stack .dash-module-btn--fullGoodsDailyIn {
+  margin-top: 0.85rem;
 }
 
 .dash-module-btn--ftPrintables .dash-module-btn__icon {
@@ -538,7 +632,24 @@
     0 16px 32px rgba(22, 50, 74, 0.14);
 }
 
+.dash-module-btn--fullGoodsDailyIn:hover {
+  border-color: #38bdf8;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 1) inset,
+    0 8px 14px rgba(37, 99, 235, 0.12),
+    0 16px 32px rgba(22, 50, 74, 0.14);
+}
+
 .dash-module-btn--empties:hover {
+  border-color: #fbbf24;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 1) inset,
+    0 8px 14px rgba(245, 158, 11, 0.14),
+    0 16px 32px rgba(22, 50, 74, 0.14);
+}
+
+.dash-module-btn--emptiesDailyIn:hover,
+.dash-module-btn--emptiesDailyOut:hover {
   border-color: #fbbf24;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 1) inset,
@@ -562,12 +673,28 @@
   border-color: #60a5fa;
 }
 
+.dash-module-btn--customerPrintables:hover {
+  border-color: #38bdf8;
+}
+
+.dash-module-btn--routePrintables:hover {
+  border-color: #3b82f6;
+}
+
+.dash-module-btn--dslPrintables:hover {
+  border-color: #34d399;
+}
+
 .dash-module-btn--actualInventory:hover {
   border-color: #a78bfa;
 }
 
 .dash-module-btn--inventory:hover {
   border-color: #c084fc;
+}
+
+.dash-module-btn--collection:hover {
+  border-color: #f59e0b;
 }
 
 .dash-module-btn--factory:hover {
@@ -685,6 +812,7 @@
   }
 
   .dash-modules-main-row .dash-module-btn--printables,
+  .dash-modules-main-row .dash-module-btn--emptiesPrintables + .dash-module-btn--actualInventory,
   .dash-modules-main-row .dash-module-btn--actualInventory {
     margin-left: 0;
   }

@@ -32,6 +32,7 @@ export function LoginPage() {
 
   return (
     <div className="login-shell">
+      <div className="login-bg" aria-hidden="true" />
       <div className="login-glow" aria-hidden="true" />
 
       <div className="login-frame">
@@ -83,6 +84,13 @@ export function LoginPage() {
           New accounts can only be created by the master admin.
         </p>
       </div>
+
+      <footer className="login-footer">
+        <p>
+          CMJgo Web Application · Powered by CMJ-MIS · Developed by Mark Morales · All rights
+          reserved 2026
+        </p>
+      </footer>
     </div>
   )
 }

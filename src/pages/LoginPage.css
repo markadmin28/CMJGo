@@ -3,14 +3,24 @@
   min-height: 100svh;
   display: grid;
   place-items: center;
-  padding: 1.5rem 1rem;
+  padding: 1.5rem 1rem 3.5rem;
   overflow: hidden;
   background: var(--gradient-page);
+}
+
+.login-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url('../assets/cmjgo-website-hero-cartoon.png') center / cover no-repeat;
+  opacity: 0.1;
 }
 
 .login-glow {
   position: absolute;
   inset: 0;
+  z-index: 0;
   pointer-events: none;
   background:
     radial-gradient(ellipse 55% 35% at 50% -8%, rgba(62, 207, 142, 0.22), transparent 58%),
@@ -146,6 +156,27 @@
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
   color: var(--fg-subtle);
+}
+
+.login-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  padding: 0.65rem 1rem 0.85rem;
+  border-top: 1px solid rgba(169, 196, 212, 0.45);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(244, 251, 248, 0.72) 100%);
+  backdrop-filter: blur(8px);
+}
+
+.login-footer p {
+  margin: 0;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+  letter-spacing: 0.01em;
 }
 
 @keyframes login-in {

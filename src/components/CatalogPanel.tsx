@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import type { UserBranch } from '../lib/branches'
 import {
   addCategory,
   addProduct,
@@ -13,11 +14,21 @@ import {
   updateCategory,
   updateProduct,
   updateSubcategory,
+  usesBranchPriceOverrides,
+  usesBranchTxVisibility,
+  setBranchProductTxEnabled,
   type CatalogTreeCategory,
 } from '../lib/catalog'
 import schemaSql from '../../supabase/schema.sql?raw'
+import branchPricesSql from '../../supabase/product_branch_prices_schema.sql?raw'
 import { AddCategoryModal } from './AddCategoryModal'
 import './CatalogPanel.css'
+
+type CatalogPanelProps = {
+  branch?: UserBranch | null
+  /** `pallets` shows only Pallets brands/products; default is full item catalog. */
+  view?: 'items' | 'pallets'
+}
 
 type EditState =
   | { kind: 'category'; id: string; name: string }
@@ -43,14 +54,18 @@ function PencilIcon() {
   )
 }
 
-export function CatalogPanel() {
+export function CatalogPanel({ branch = null, view = 'items' }: CatalogPanelProps) {
   const { user } = useAuth()
+  const priceBranch = usesBranchPriceOverrides(branch) ? branch : null
+  const txBranch = usesBranchTxVisibility(branch) ? branch : null
   const [tree, setTree] = useState<CatalogTreeCategory[]>([])
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [missingTable, setMissingTable] = useState(false)
+  const [missingBranchPrices, setMissingBranchPrices] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [copiedBranchSql, setCopiedBranchSql] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [addCategoryOpen, setAddCategoryOpen] = useState(false)
   const [edit, setEdit] = useState<EditState | null>(null)
@@ -59,11 +74,24 @@ export function CatalogPanel() {
   const [addingBrand, setAddingBrand] = useState(false)
   const [productForms, setProductForms] = useState<Record<string, { name: string; price: string }>>({})
 
+  const displayTree = (() => {
+    if (view !== 'pallets') return tree
+    return tree
+      .map((category) => ({
+        ...category,
+        subcategories: category.subcategories.filter(
+          (sub) => sub.name.trim().toLowerCase() === 'pallets',
+        ),
+      }))
+      .filter((category) => category.subcategories.length > 0)
+  })()
+
   async function load(preferCategoryId?: string | null) {
     setLoading(true)
     setError(null)
-    const result = await listCatalogTree()
+    const result = await listCatalogTree(branch)
     setMissingTable(result.missingTable)
+    setMissingBranchPrices(Boolean(result.missingBranchPrices))
     setError(result.error)
     setTree(result.data)
 
@@ -77,14 +105,30 @@ export function CatalogPanel() {
 
   useEffect(() => {
     void load()
-  }, [])
+  }, [branch])
 
-  const activeCategory = tree.find((item) => item.id === activeCategoryId) ?? null
+  const activeCategory = displayTree.find((item) => item.id === activeCategoryId) ?? null
+
+  useEffect(() => {
+    if (displayTree.length === 0) {
+      if (activeCategoryId != null) setActiveCategoryId(null)
+      return
+    }
+    if (!displayTree.some((item) => item.id === activeCategoryId)) {
+      setActiveCategoryId(displayTree[0].id)
+    }
+  }, [view, tree])
 
   async function copySql() {
     await navigator.clipboard.writeText(schemaSql)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function copyBranchPricesSql() {
+    await navigator.clipboard.writeText(branchPricesSql)
+    setCopiedBranchSql(true)
+    window.setTimeout(() => setCopiedBranchSql(false), 2000)
   }
 
   async function handleSaveCategory(name: string) {
@@ -141,8 +185,12 @@ export function CatalogPanel() {
 
     setSubmitting(true)
     setError(null)
-    const result = await addProduct(subcategoryId, trimmed, parsed)
+    const result = await addProduct(subcategoryId, trimmed, parsed, priceBranch)
     setSubmitting(false)
+
+    if (result.missingTable) {
+      setMissingBranchPrices(true)
+    }
 
     if (result.error) {
       setError(result.error)
@@ -180,6 +228,31 @@ export function CatalogPanel() {
     await load(activeCategoryId)
   }
 
+  async function handleToggleTxEnabled(
+    productId: string,
+    enabled: boolean,
+    price: number,
+  ) {
+    if (!txBranch) return
+    setError(null)
+    const result = await setBranchProductTxEnabled(productId, txBranch, enabled, price)
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+    setTree((prev) =>
+      prev.map((category) => ({
+        ...category,
+        subcategories: category.subcategories.map((sub) => ({
+          ...sub,
+          products: sub.products.map((product) =>
+            product.id === productId ? { ...product, showInCustomerTx: enabled } : product,
+          ),
+        })),
+      })),
+    )
+  }
+
   async function commitEdit() {
     if (!edit || submitting) return
 
@@ -195,7 +268,7 @@ export function CatalogPanel() {
       const result = await updateSubcategory(edit.id, edit.name)
       resultError = result.error
     } else {
-      const result = await updateProduct(edit.id, edit.name, Number(edit.price))
+      const result = await updateProduct(edit.id, edit.name, Number(edit.price), priceBranch)
       resultError = result.error
     }
 
@@ -232,9 +305,11 @@ export function CatalogPanel() {
     <section className="catalog">
       <div className="catalog-head">
         <div className="catalog-head-actions">
-          {!loading && !missingTable ? (
-            <span className="catalog-count">{tree.length} categories</span>
-          ) : null}
+          <span className="catalog-count">
+            {view === 'pallets' ? 'Pallets price' : 'Items price'}
+            {priceBranch ? ` · ${priceBranch}` : ''}
+            {!loading && !missingTable ? ` · ${displayTree.length} categories` : ''}
+          </span>
         </div>
       </div>
 
@@ -261,31 +336,57 @@ export function CatalogPanel() {
         </div>
       ) : null}
 
+      {!missingTable && missingBranchPrices ? (
+        <div className="catalog-setup">
+          <div>
+            <strong>Branch product setup required</strong>
+            <p>
+              Run the branch prices SQL in Supabase so each branch can store TX product checkboxes
+              (and Nabunturan separate prices).
+            </p>
+          </div>
+          <div className="catalog-setup-actions">
+            <button type="button" className="btn-secondary" onClick={() => void copyBranchPricesSql()}>
+              {copiedBranchSql ? 'Copied' : 'Copy branch prices SQL'}
+            </button>
+            <button type="button" className="btn-primary-setup" onClick={() => void load()}>
+              Refresh
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {error && !missingTable ? <p className="catalog-error">{error}</p> : null}
 
       {loading ? <p className="catalog-empty">Loading…</p> : null}
 
-      {!loading && !missingTable && tree.length === 0 ? (
+      {!loading && !missingTable && displayTree.length === 0 ? (
         <p className="catalog-empty">
-          <span className="catalog-empty-title">No categories yet</span>
-          Click + to add PCPPI, SMC, or MAGNOLIA.
-          <button
-            type="button"
-            className="category-add-tab-btn catalog-empty-add"
-            aria-label="Add category"
-            title="Add category"
-            onClick={() => setAddCategoryOpen(true)}
-          >
-            +
-          </button>
+          <span className="catalog-empty-title">
+            {view === 'pallets' ? 'No Pallets products yet' : 'No categories yet'}
+          </span>
+          {view === 'pallets'
+            ? 'Add a brand named Pallets under a category in Items price, then set prices here.'
+            : 'Click + to add PCPPI, SMC, or MAGNOLIA.'}
+          {view !== 'pallets' ? (
+            <button
+              type="button"
+              className="category-add-tab-btn catalog-empty-add"
+              aria-label="Add category"
+              title="Add category"
+              onClick={() => setAddCategoryOpen(true)}
+            >
+              +
+            </button>
+          ) : null}
         </p>
       ) : null}
 
-      {!loading && tree.length > 0 ? (
+      {!loading && displayTree.length > 0 ? (
         <div className="category-section">
           <div className="category-tabs-row">
             <div className="category-tabs" role="tablist" aria-label="Categories">
-              {tree.map((category) => {
+              {displayTree.map((category) => {
                 const isEditing = edit?.kind === 'category' && edit.id === category.id
 
                 if (isEditing) {
@@ -528,7 +629,29 @@ export function CatalogPanel() {
                           }
 
                           return (
-                            <div key={product.id} className="product-chip">
+                            <div
+                              key={product.id}
+                              className={`product-chip${txBranch ? ' product-chip--with-tx' : ''}`}
+                            >
+                              {txBranch ? (
+                                <label
+                                  className="product-tx-check"
+                                  title={`Show in ${txBranch} modules (TX, daily, printables)`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(product.showInCustomerTx)}
+                                    onChange={(event) =>
+                                      void handleToggleTxEnabled(
+                                        product.id,
+                                        event.target.checked,
+                                        Number(product.price) || 0,
+                                      )
+                                    }
+                                    aria-label={`Include ${product.name} in transactions`}
+                                  />
+                                </label>
+                              ) : null}
                               <span
                                 className="product-name"
                                 title="Double-click to edit"

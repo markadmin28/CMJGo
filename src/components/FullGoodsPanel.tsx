@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { listCatalogTree, type CatalogTreeCategory } from '../lib/catalog'
+import type { UserBranch } from '../lib/branches'
+import { findBoCatalogCategory } from '../lib/boBadOrder'
+import { customerTxCompanyToBo } from '../lib/customerTransaction'
 import {
   addFullGoodsMovement,
   addLocation,
   deleteFullGoodsMovement,
   deleteLocation,
+  getDailyLoadPresets,
   getNextSeriesLoadNumber,
   isPresetLoadNumber,
   listFullGoodsMovements,
   listLoadNumberOptions,
   listLocations,
+  normalizeDailyLoadNumber,
   searchFullGoodsMovements,
   updateFullGoodsMovement,
   updateLocation,
@@ -114,10 +119,38 @@ function buildEmptiesTabs(tree: CatalogTreeCategory[]): {
 
 type FullGoodsPanelProps = {
   mode?: 'fullGoods' | 'empties'
+  branch?: UserBranch | null
+  /** When set, Type is fixed (e.g. Nabunturan daily in/out cards). */
+  lockedMovementType?: FullGoodsMovementType
+  /** Prefer / filter to this company category (Pepsi, SMC, Magnolia). */
+  preferredCompany?: 'Pepsi' | 'SMC' | 'Magnolia' | null
+  onClose?: () => void
 }
 
-export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
+function matchesDailyCompany(
+  categoryName: string,
+  company: 'Pepsi' | 'SMC' | 'Magnolia',
+  empties: boolean,
+) {
+  const name = normalizeTabName(categoryName)
+  if (company === 'Pepsi') {
+    return empties
+      ? name.includes('pepsi')
+      : name === 'pcppi' || name === 'pc' || name.includes('pepsi')
+  }
+  if (company === 'SMC') return name.includes('smc')
+  return name.includes('magnolia') || name.includes('magnoia')
+}
+
+export function FullGoodsPanel({
+  mode = 'fullGoods',
+  branch = 'Davao',
+  lockedMovementType,
+  preferredCompany = null,
+  onClose,
+}: FullGoodsPanelProps) {
   const { user } = useAuth()
+  const catalogBranch = branch ?? 'Davao'
   const isEmptiesMode = mode === 'empties'
   const goodsLabel = isEmptiesMode ? 'Empties' : 'Full Goods'
   const [tree, setTree] = useState<CatalogTreeCategory[]>([])
@@ -141,8 +174,14 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
   } | null>(null)
   const [locationModal, setLocationModal] = useState<'add' | 'edit' | null>(null)
 
-  const [movementType, setMovementType] = useState<FullGoodsMovementType>('in')
+  const [movementType, setMovementType] = useState<FullGoodsMovementType>(
+    lockedMovementType ?? 'in',
+  )
   const [movementDate, setMovementDate] = useState(todayIsoDate())
+
+  useEffect(() => {
+    if (lockedMovementType) setMovementType(lockedMovementType)
+  }, [lockedMovementType])
   const [truckNumber, setTruckNumber] = useState('')
   const [loadNumber, setLoadNumber] = useState('1')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -155,17 +194,49 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
   const selectedLocation = locations.find((item) => item.id === locationId) ?? null
 
   const visibleTree = useMemo(() => {
+    const base = isEmptiesMode
+      ? buildEmptiesTabs(tree).tabs
+      : tree.filter(
+          (category) => !isEmptiesCategory(category.name) && !isPalletsCategory(category.name),
+        )
+    if (!preferredCompany) return base
     if (isEmptiesMode) {
-      return buildEmptiesTabs(tree).tabs
+      return base.filter((category) =>
+        matchesDailyCompany(category.name, preferredCompany, true),
+      )
     }
-    return tree.filter(
-      (category) => !isEmptiesCategory(category.name) && !isPalletsCategory(category.name),
-    )
-  }, [tree, isEmptiesMode])
+    const matched = findBoCatalogCategory(base, customerTxCompanyToBo(preferredCompany))
+    return matched ? [matched] : []
+  }, [tree, isEmptiesMode, preferredCompany])
 
   async function refreshLoadOptions(preferLoad?: string | null, keepPreset = false) {
+    const dailyMode = Boolean(lockedMovementType && preferredCompany)
+    if (dailyMode) {
+      const presets = getDailyLoadPresets()
+      setLoadOptions(presets)
+      setNextSeries('')
+      if (preferLoad != null && String(preferLoad).trim() !== '') {
+        setLoadNumber(normalizeDailyLoadNumber(String(preferLoad)))
+      } else if (keepPreset && String(loadNumber).trim() !== '') {
+        setLoadNumber(normalizeDailyLoadNumber(loadNumber))
+      } else {
+        setLoadNumber('')
+      }
+      return {
+        data: presets,
+        nextSeries: '',
+        error: null as string | null,
+        missingTable: false,
+      }
+    }
+
     const seriesMode = isEmptiesMode ? 'empties' : 'fullGoods'
-    const loadResult = await listLoadNumberOptions(movementDate, seriesMode, emptiesParentId)
+    const loadResult = await listLoadNumberOptions(
+      movementDate,
+      seriesMode,
+      emptiesParentId,
+      catalogBranch,
+    )
     setLoadOptions(loadResult.data)
     setNextSeries(loadResult.nextSeries)
 
@@ -184,7 +255,10 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
     setLoading(true)
     setError(null)
 
-    const [catalogResult, locationsResult] = await Promise.all([listCatalogTree(), listLocations()])
+    const [catalogResult, locationsResult] = await Promise.all([
+      listCatalogTree(catalogBranch, { forTransactions: true }),
+      listLocations(catalogBranch),
+    ])
 
     setSkuMissing(catalogResult.missingTable)
     setMissingTable(locationsResult.missingTable)
@@ -202,6 +276,20 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
         (category) => !isEmptiesCategory(category.name) && !isPalletsCategory(category.name),
       )
       setEmptiesParentId(null)
+    }
+
+    if (preferredCompany) {
+      if (isEmptiesMode) {
+        filtered = filtered.filter((category) =>
+          matchesDailyCompany(category.name, preferredCompany, true),
+        )
+      } else {
+        const matched = findBoCatalogCategory(
+          filtered,
+          customerTxCompanyToBo(preferredCompany),
+        )
+        filtered = matched ? [matched] : []
+      }
     }
 
     let nextCategoryId: string | null = null
@@ -226,20 +314,53 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
 
   useEffect(() => {
     void load()
-  }, [mode])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when mode/branch/company lock changes
+  }, [mode, catalogBranch, preferredCompany, lockedMovementType])
+
+  const isDailyLayout = Boolean(lockedMovementType && preferredCompany)
 
   useEffect(() => {
-    if (loading || editingId) return
+    if (loading || editingId || isDailyLayout) return
     void refreshLoadOptions(null, true)
   }, [movementDate])
 
   const activeCategory = visibleTree.find((item) => item.id === activeCategoryId) ?? null
   const categoryLabel = activeCategory?.name.trim() ?? ''
+  /** Flat product list for SMC/Magnolia fulls and all empties daily. */
+  const useDailyProductList =
+    isDailyLayout &&
+    (isEmptiesMode || preferredCompany === 'SMC' || preferredCompany === 'Magnolia')
+  /** Empties daily: single vertical column (not multi-column). */
+  const useDailyVerticalList = isDailyLayout && isEmptiesMode
+  const dailyFlatProducts = useMemo(() => {
+    if (!activeCategory) return [] as Array<{ id: string; label: string }>
+    return activeCategory.subcategories.flatMap((subcategory) => {
+      const brand = subcategory.name.trim()
+      const hideBrand =
+        activeCategory.subcategories.length <= 1 ||
+        normalizeTabName(brand) === normalizeTabName(activeCategory.name)
+      return subcategory.products.map((product) => ({
+        id: product.id,
+        label: hideBrand || !brand ? product.name : `${brand} · ${product.name}`,
+      }))
+    })
+  }, [activeCategory])
+  const dailyCompanyClass =
+    preferredCompany === 'SMC'
+      ? 'is-smc'
+      : preferredCompany === 'Magnolia'
+        ? 'is-magnolia'
+        : 'is-pepsi'
   const headerTitle = isEmptiesMode
     ? `${categoryLabel ? `${categoryLabel} ` : ''}Empties ${movementType === 'in' ? 'In' : 'Out'}`
     : `${categoryLabel ? `${categoryLabel} ` : ''}Full Goods ${
         movementType === 'in' ? 'In' : 'Out'
       }`
+  const dailyTitle = preferredCompany
+    ? `${preferredCompany.toUpperCase()} ${
+        isEmptiesMode ? 'EMPTIES' : 'FULL GOODS'
+      } DAILY ${lockedMovementType === 'out' ? 'OUT' : 'IN'}`
+    : headerTitle
 
   function selectCategory(categoryId: string) {
     setActiveCategoryId(categoryId)
@@ -260,7 +381,7 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
     const result =
       locationModal === 'edit' && selectedLocation
         ? await updateLocation(selectedLocation.id, name)
-        : await addLocation(name, user?.id)
+        : await addLocation(name, user?.id, catalogBranch)
 
     setLocationSubmitting(false)
 
@@ -288,7 +409,7 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
     setTruckNumber('')
     setQuantities({})
     setMovementDate(todayIsoDate())
-    setMovementType('in')
+    setMovementType(lockedMovementType ?? 'in')
   }
 
   async function clearAndRefresh() {
@@ -373,6 +494,7 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
         }
 
         const result = await updateFullGoodsMovement(currentEditingId, {
+          branch: catalogBranch,
           movement_type: movementType,
           movement_date: movementDate,
           truck_number: truckNumber,
@@ -430,14 +552,20 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
       }
 
       const usePreset = isPresetLoadNumber(loadNumber)
+      const useTypedDailyLoad = isDailyLayout
 
       for (const entry of toSave) {
-        let loadForCategory = String(loadNumber ?? '').trim()
-        if (!usePreset) {
+        let loadForCategory = normalizeDailyLoadNumber(String(loadNumber ?? ''))
+        if (!loadForCategory) {
+          setError('Load number is required.')
+          return
+        }
+        if (!usePreset && !useTypedDailyLoad) {
           const seriesResult = await getNextSeriesLoadNumber(
             movementDate,
             isEmptiesMode ? 'empties' : 'fullGoods',
             emptiesParentId,
+            catalogBranch,
           )
           if (seriesResult.error) {
             setError(
@@ -452,6 +580,7 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
 
         const result = await addFullGoodsMovement(
           {
+            branch: catalogBranch,
             movement_type: movementType,
             movement_date: movementDate,
             truck_number: truckNumber,
@@ -506,7 +635,7 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
   async function runSearch(query = searchQuery) {
     setSearching(true)
     setError(null)
-    const result = await listFullGoodsMovements()
+    const result = await listFullGoodsMovements(catalogBranch)
     setSearching(false)
 
     if (result.error) {
@@ -531,13 +660,23 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
         ? result.data.filter((item) => item.category_id === emptiesParentId)
         : result.data
 
-    setSearchResults(searchFullGoodsMovements(byCategory, query))
+    const byType = lockedMovementType
+      ? byCategory.filter((item) => item.movement_type === lockedMovementType)
+      : byCategory
+
+    setSearchResults(searchFullGoodsMovements(byType, query))
   }
 
   function handleEdit(movement: FullGoodsMovement) {
+    if (lockedMovementType && movement.movement_type !== lockedMovementType) {
+      setError(
+        `This record is ${movement.movement_type === 'in' ? 'In' : 'Out'}; open the matching daily card to edit it.`,
+      )
+      return
+    }
     setSearchOpen(false)
     setEditingId(movement.id)
-    setMovementType(movement.movement_type)
+    setMovementType(lockedMovementType ?? movement.movement_type)
     setMovementDate(movement.movement_date)
     setTruckNumber(String(movement.truck_number ?? ''))
     const load = String(movement.load_number ?? '')
@@ -591,12 +730,14 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
   }
 
   return (
-    <section className="fg">
-      <div className="fg-head">
-        <div>
-          <h1>{headerTitle}</h1>
+    <section className={isDailyLayout ? `fg fg-daily ${dailyCompanyClass}` : 'fg'}>
+      {!isDailyLayout ? (
+        <div className="fg-head">
+          <div>
+            <h1>{headerTitle}</h1>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {missingTable ? (
         <div className="catalog-setup">
@@ -628,7 +769,267 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
 
       {error && !missingTable ? <p className="catalog-error">{error}</p> : null}
 
-      {!missingTable ? (
+      {!missingTable && isDailyLayout ? (
+        <form
+          className="fg-daily-shell"
+          onSubmit={(event) => void handleSubmit(event)}
+          aria-label={dailyTitle}
+        >
+          <aside className="fg-daily-side">
+            <header className="fg-daily-side__brand">
+              <h1>{dailyTitle}</h1>
+              <p>CMJ {catalogBranch}</p>
+            </header>
+
+            <div className="fg-daily-meta">
+              {editingId ? (
+                <div className="fg-daily-edit">
+                  <span>Editing saved record</span>
+                  <button
+                    type="button"
+                    className="fg-daily-edit__cancel"
+                    onClick={() => void clearAndRefresh()}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : null}
+
+              <label className="fg-daily-field">
+                <span>DATE</span>
+                <input
+                  type="date"
+                  value={movementDate}
+                  onChange={(event) => setMovementDate(event.target.value)}
+                  required
+                />
+              </label>
+              <label className="fg-daily-field">
+                <span>TRUCK NO.</span>
+                <input
+                  value={truckNumber}
+                  onChange={(event) => setTruckNumber(event.target.value)}
+                  placeholder="Plate / truck"
+                  required
+                />
+              </label>
+              <label className="fg-daily-field">
+                <span>LOAD NO.</span>
+                <input
+                  list="fg-daily-load-presets"
+                  value={loadNumber}
+                  onChange={(event) => setLoadNumber(event.target.value)}
+                  onBlur={() => setLoadNumber((prev) => normalizeDailyLoadNumber(prev))}
+                  placeholder="Select or type load no."
+                  required
+                  autoComplete="off"
+                />
+                <datalist id="fg-daily-load-presets">
+                  {getDailyLoadPresets().map((option) => (
+                    <option key={option} value={option} />
+                  ))}
+                </datalist>
+              </label>
+              <div className="fg-daily-field">
+                <span>
+                  {isEmptiesMode && movementType === 'out'
+                    ? 'TO DESTINATION'
+                    : 'FROM DESTINATION'}
+                </span>
+                <div className="fg-daily-location">
+                  <select
+                    value={locationId ?? ''}
+                    disabled={loading || locations.length === 0}
+                    onChange={(event) => setLocationId(event.target.value || null)}
+                    required={locations.length > 0}
+                    aria-label={
+                      isEmptiesMode && movementType === 'out'
+                        ? 'To destination'
+                        : 'From destination'
+                    }
+                  >
+                    {locations.length === 0 ? (
+                      <option value="">No destinations yet</option>
+                    ) : (
+                      locations.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <button
+                    type="button"
+                    className="fg-daily-location__add"
+                    aria-label="Add destination"
+                    title="Add destination"
+                    disabled={loading}
+                    onClick={() => setLocationModal('add')}
+                  >
+                    +
+                  </button>
+                </div>
+                {locations.length === 0 && !loading ? (
+                  <button
+                    type="button"
+                    className="fg-daily-location__hint"
+                    disabled={loading}
+                    onClick={() => setLocationModal('add')}
+                  >
+                    Add destination
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </aside>
+
+          <div className="fg-daily-main">
+            {loading ? <p className="catalog-empty">Loading products…</p> : null}
+
+            {!loading && skuMissing ? (
+              <p className="catalog-empty">
+                <span className="catalog-empty-title">Stock Keeping Unit not set up</span>
+                Register products in Stock Keeping Unit first.
+              </p>
+            ) : null}
+
+            {!loading && !skuMissing && (!activeCategory || dailyFlatProducts.length === 0) ? (
+              <p className="catalog-empty">
+                <span className="catalog-empty-title">No products for {preferredCompany}</span>
+                Check Items price for this company, then refresh.
+              </p>
+            ) : null}
+
+            {!loading && !skuMissing && activeCategory && dailyFlatProducts.length > 0 ? (
+              useDailyProductList ? (
+                <div
+                  className={
+                    useDailyVerticalList
+                      ? 'fg-daily-product-grid fg-daily-product-grid--stack'
+                      : 'fg-daily-product-grid'
+                  }
+                  aria-label={`${preferredCompany} products`}
+                >
+                  {dailyFlatProducts.map((item) => (
+                    <label key={item.id} className="fg-daily-product-row">
+                      <span className="fg-daily-product-row__name">{item.label}</span>
+                      <span className="fg-daily-product-row__dots" aria-hidden="true" />
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        inputMode="decimal"
+                        className={
+                          (quantities[item.id] ?? '').trim() !== '' ? 'is-filled' : undefined
+                        }
+                        value={quantities[item.id] ?? ''}
+                        onChange={(event) =>
+                          setQuantities((prev) => ({
+                            ...prev,
+                            [item.id]: event.target.value,
+                          }))
+                        }
+                        aria-label={`Quantity for ${item.label}`}
+                      />
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <div className="fg-daily-brands">
+                  {activeCategory.subcategories.map((subcategory) =>
+                    subcategory.products.length === 0 ? null : (
+                      <section
+                        key={subcategory.id}
+                        className="fg-daily-brand"
+                        aria-label={subcategory.name}
+                      >
+                        <h2>{subcategory.name}</h2>
+                        <ul>
+                          {subcategory.products.map((product) => (
+                            <li key={product.id}>
+                              <span>{product.name}</span>
+                              <span className="fg-daily-brand__dots" aria-hidden="true" />
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                inputMode="decimal"
+                                className={
+                                  (quantities[product.id] ?? '').trim() !== ''
+                                    ? 'is-filled'
+                                    : undefined
+                                }
+                                value={quantities[product.id] ?? ''}
+                                onChange={(event) =>
+                                  setQuantities((prev) => ({
+                                    ...prev,
+                                    [product.id]: event.target.value,
+                                  }))
+                                }
+                                aria-label={`Quantity for ${product.name}`}
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ),
+                  )}
+                </div>
+              )
+            ) : null}
+
+            <div className="fg-daily-footer">
+              <button
+                type="button"
+                className="fg-daily-search"
+                disabled={searching || missingTable}
+                onClick={() => void openSearch()}
+              >
+                {searching ? 'Searching…' : 'View saved records'}
+              </button>
+              <div className="fg-daily-footer__actions">
+                {editingId ? (
+                  <button
+                    type="button"
+                    className="fg-daily-clear"
+                    disabled={submitting || loading}
+                    onClick={() => void handleDelete(editingId)}
+                  >
+                    Delete
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="fg-daily-clear"
+                  disabled={submitting || loading}
+                  onClick={() => void clearAndRefresh()}
+                >
+                  Clear
+                </button>
+                {onClose ? (
+                  <button
+                    type="button"
+                    className="fg-daily-close-btn"
+                    disabled={submitting}
+                    onClick={onClose}
+                  >
+                    Close
+                  </button>
+                ) : null}
+                <button
+                  type="submit"
+                  className="fg-daily-save"
+                  disabled={submitting || loading || skuMissing || locations.length === 0}
+                >
+                  {submitting ? 'Saving…' : editingId ? 'Update' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      ) : null}
+
+      {!missingTable && !isDailyLayout ? (
         <form className="fg-form-shell" onSubmit={(event) => void handleSubmit(event)}>
           {editingId ? (
             <div className="fg-edit-banner">
@@ -642,13 +1043,29 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
           <div className="fg-form">
             <label className="fg-field">
               <span>Type</span>
-              <select
-                value={movementType}
-                onChange={(event) => setMovementType(event.target.value as FullGoodsMovementType)}
-              >
-                <option value="in">{isEmptiesMode ? 'Empties in' : 'Full goods in'}</option>
-                <option value="out">{isEmptiesMode ? 'Empties out' : 'Full goods out'}</option>
-              </select>
+              {lockedMovementType ? (
+                <input
+                  type="text"
+                  readOnly
+                  value={
+                    lockedMovementType === 'in'
+                      ? isEmptiesMode
+                        ? 'Empties in'
+                        : 'Full goods in'
+                      : isEmptiesMode
+                        ? 'Empties out'
+                        : 'Full goods out'
+                  }
+                />
+              ) : (
+                <select
+                  value={movementType}
+                  onChange={(event) => setMovementType(event.target.value as FullGoodsMovementType)}
+                >
+                  <option value="in">{isEmptiesMode ? 'Empties in' : 'Full goods in'}</option>
+                  <option value="out">{isEmptiesMode ? 'Empties out' : 'Full goods out'}</option>
+                </select>
+              )}
             </label>
 
             <label className="fg-field">
@@ -884,7 +1301,7 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
         </form>
       ) : null}
 
-      {!loading && !missingTable && locations.length === 0 ? (
+      {!loading && !missingTable && !isDailyLayout && locations.length === 0 ? (
         <p className="catalog-empty">
           <span className="catalog-empty-title">No locations yet</span>
           Click + next to Location to add one.
@@ -1038,11 +1455,15 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
       <NameModal
         open={locationModal === 'add'}
         submitting={locationSubmitting}
-        title="Add location"
-        description="Create a location you can reuse on full goods records."
-        fieldLabel="Location name"
+        title={isDailyLayout ? 'Add destination' : 'Add location'}
+        description={
+          isDailyLayout
+            ? `Create a destination for ${catalogBranch} daily in/out.`
+            : 'Create a location you can reuse on full goods records.'
+        }
+        fieldLabel={isDailyLayout ? 'Destination name' : 'Location name'}
         placeholder="Warehouse A"
-        submitLabel="Save location"
+        submitLabel={isDailyLayout ? 'Save destination' : 'Save location'}
         onClose={() => setLocationModal(null)}
         onSave={handleSaveLocation}
       />
@@ -1050,9 +1471,13 @@ export function FullGoodsPanel({ mode = 'fullGoods' }: FullGoodsPanelProps) {
       <NameModal
         open={locationModal === 'edit'}
         submitting={locationSubmitting}
-        title="Edit location"
-        description="Rename this location. Existing records keep the name they were saved with."
-        fieldLabel="Location name"
+        title={isDailyLayout ? 'Edit destination' : 'Edit location'}
+        description={
+          isDailyLayout
+            ? 'Rename this destination. Existing records keep the name they were saved with.'
+            : 'Rename this location. Existing records keep the name they were saved with.'
+        }
+        fieldLabel={isDailyLayout ? 'Destination name' : 'Location name'}
         placeholder="Warehouse A"
         submitLabel="Save changes"
         initialName={selectedLocation?.name ?? ''}

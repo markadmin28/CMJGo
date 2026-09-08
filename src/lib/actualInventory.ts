@@ -1,6 +1,7 @@
 import type { CatalogTreeCategory } from './catalog'
 import { isMissingCatalogTable } from './catalog'
 import { normalizeCategoryName } from './bLiquidation'
+import type { UserBranch } from './branches'
 import { supabase } from './supabase'
 
 export type ActualInventoryItemInput = {
@@ -22,6 +23,7 @@ export type ActualInventoryItemRecord = {
 
 export type ActualInventoryDetail = {
   id: string
+  branch: string
   category: string
   as_of_month: string
   items: ActualInventoryItemRecord[]
@@ -42,7 +44,14 @@ function mapError(error: { message?: string; code?: string } | null) {
   if (isMissingCatalogTable(error)) {
     return 'Actual Inventory tables are not set up yet. Run the SQL in the setup card, then refresh.'
   }
+  if (/column .*branch.* does not exist/i.test(error.message ?? '') || error.code === '42703') {
+    return 'Actual Inventory needs a branch update. Run supabase/actual_inventory_branch_schema.sql, then refresh.'
+  }
   return error.message ?? 'Something went wrong.'
+}
+
+function resolveBranch(branch?: UserBranch | null) {
+  return branch ?? 'Davao'
 }
 
 export function monthStartFromValue(monthValue: string) {
@@ -104,11 +113,17 @@ export function lookupActualBeginning(
   return byName == null ? null : byName
 }
 
-export async function getActualInventory(category: string, monthValue: string) {
+export async function getActualInventory(
+  category: string,
+  monthValue: string,
+  branch?: UserBranch | null,
+) {
+  const resolvedBranch = resolveBranch(branch)
   const asOfMonth = monthStartFromValue(monthValue)
   const { data: header, error } = await supabase
     .from('actual_inventories')
-    .select('id, category, as_of_month')
+    .select('id, branch, category, as_of_month')
+    .eq('branch', resolvedBranch)
     .eq('category', category)
     .eq('as_of_month', asOfMonth)
     .maybeSingle()
@@ -142,6 +157,7 @@ export async function getActualInventory(category: string, monthValue: string) {
   return {
     data: {
       id: header.id as string,
+      branch: (header.branch as string) || resolvedBranch,
       category: header.category as string,
       as_of_month: header.as_of_month as string,
       items: (items ?? []) as ActualInventoryItemRecord[],
@@ -151,11 +167,16 @@ export async function getActualInventory(category: string, monthValue: string) {
   }
 }
 
-export async function listActualInventoriesForMonth(monthValue: string) {
+export async function listActualInventoriesForMonth(
+  monthValue: string,
+  branch?: UserBranch | null,
+) {
+  const resolvedBranch = resolveBranch(branch)
   const asOfMonth = monthStartFromValue(monthValue)
   const { data: headers, error } = await supabase
     .from('actual_inventories')
-    .select('id, category, as_of_month')
+    .select('id, branch, category, as_of_month')
+    .eq('branch', resolvedBranch)
     .eq('as_of_month', asOfMonth)
 
   if (error) {
@@ -205,6 +226,7 @@ export async function listActualInventoriesForMonth(monthValue: string) {
   return {
     data: rows.map((header) => ({
       id: header.id as string,
+      branch: (header.branch as string) || resolvedBranch,
       category: header.category as string,
       as_of_month: header.as_of_month as string,
       items: itemsByHeader.get(header.id) ?? [],
@@ -214,10 +236,12 @@ export async function listActualInventoriesForMonth(monthValue: string) {
   }
 }
 
-export async function listActualInventoryMonthSummaries() {
+export async function listActualInventoryMonthSummaries(branch?: UserBranch | null) {
+  const resolvedBranch = resolveBranch(branch)
   const { data: headers, error } = await supabase
     .from('actual_inventories')
-    .select('id, category, as_of_month')
+    .select('id, branch, category, as_of_month')
+    .eq('branch', resolvedBranch)
     .order('as_of_month', { ascending: false })
 
   if (error) {
@@ -285,9 +309,17 @@ export async function listActualInventoryMonthSummaries() {
   return { data, error: null, missingTable: false }
 }
 
-export async function deleteActualInventoriesForMonth(monthValue: string) {
+export async function deleteActualInventoriesForMonth(
+  monthValue: string,
+  branch?: UserBranch | null,
+) {
+  const resolvedBranch = resolveBranch(branch)
   const asOfMonth = monthStartFromValue(monthValue)
-  const { error } = await supabase.from('actual_inventories').delete().eq('as_of_month', asOfMonth)
+  const { error } = await supabase
+    .from('actual_inventories')
+    .delete()
+    .eq('branch', resolvedBranch)
+    .eq('as_of_month', asOfMonth)
 
   if (error) {
     return { data: false as const, error: mapError(error), missingTable: isMissingCatalogTable(error) }
@@ -301,9 +333,11 @@ export async function saveActualInventory(input: {
   monthValue: string
   items: ActualInventoryItemInput[]
   createdBy?: string
+  branch?: UserBranch | null
 }) {
+  const resolvedBranch = resolveBranch(input.branch)
   const asOfMonth = monthStartFromValue(input.monthValue)
-  const existing = await getActualInventory(input.category, asOfMonth)
+  const existing = await getActualInventory(input.category, asOfMonth, resolvedBranch)
   if (existing.error && existing.missingTable) {
     return { data: null as ActualInventoryDetail | null, error: existing.error, missingTable: true }
   }
@@ -341,6 +375,7 @@ export async function saveActualInventory(input: {
     const { data: created, error: createError } = await supabase
       .from('actual_inventories')
       .insert({
+        branch: resolvedBranch,
         category: input.category,
         as_of_month: asOfMonth,
         created_by: input.createdBy ?? null,
@@ -378,7 +413,7 @@ export async function saveActualInventory(input: {
     }
   }
 
-  return getActualInventory(input.category, asOfMonth)
+  return getActualInventory(input.category, asOfMonth, resolvedBranch)
 }
 
 export async function saveActualInventoriesForMonth(input: {
@@ -386,7 +421,9 @@ export async function saveActualInventoriesForMonth(input: {
   categories: CatalogTreeCategory[]
   quantities: Record<string, string>
   createdBy?: string
+  branch?: UserBranch | null
 }) {
+  const resolvedBranch = resolveBranch(input.branch)
   for (const category of input.categories) {
     const section = actualInventorySection(category.name)
     const items = category.subcategories.flatMap((sub) =>
@@ -400,6 +437,7 @@ export async function saveActualInventoriesForMonth(input: {
     )
 
     const result = await saveActualInventory({
+      branch: resolvedBranch,
       category: category.name,
       monthValue: input.monthValue,
       items,

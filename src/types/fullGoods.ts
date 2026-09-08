@@ -2,12 +2,14 @@ export type FullGoodsMovementType = 'in' | 'out'
 
 export type FullGoodsLocation = {
   id: string
+  branch: string
   name: string
   created_at: string
 }
 
 export type FullGoodsMovement = {
   id: string
+  branch: string
   movement_type: FullGoodsMovementType
   movement_date: string
   truck_number: string
@@ -34,6 +36,7 @@ export type FullGoodsItem = {
 }
 
 export type FullGoodsInput = {
+  branch: string
   movement_type: FullGoodsMovementType
   movement_date: string
   truck_number: string

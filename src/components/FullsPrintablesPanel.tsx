@@ -1,5 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { UserBranch } from '../lib/branches'
+import { computeFullBLiquidationSummary } from '../lib/bLiquidation'
 import { formatPrice, listCatalogTree } from '../lib/catalog'
+import { formatCustomerTxPlateDisplay } from '../lib/customerTransaction'
+import {
+  customerTxToPrintableMovement,
+  isoDateFromTimestamp,
+  printableCategoryToCustomerCompany,
+} from '../lib/customerTxAsMovement'
+import {
+  getCustomerTransactionDetail,
+  listCustomerTransactionsWithItemsInRange,
+  type CustomerTxRecord,
+} from '../lib/customerTxSave'
+import { routeSummaryToPrintableMovement } from '../lib/routeSummaryAsMovement'
+import { listRouteSummariesWithItemsInRange } from '../lib/routeSummarySave'
 import { listFullGoodsMovements } from '../lib/fullGoods'
 import type { FullGoodsMovement } from '../types/fullGoods'
 import './FullGoodsPanel.css'
@@ -80,6 +95,28 @@ function formatPrintDateTime(movementDate: string, createdAt?: string | null) {
 function normalizeCategoryName(name: string | null | undefined) {
   return (name ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
 }
+
+type MergedPrintablesRow =
+  | {
+      kind: 'movement'
+      id: string
+      sortAt: string
+      plate: string
+      second: string
+      third: string
+      movementLabel: 'In' | 'Out'
+      movement: FullGoodsMovement
+    }
+  | {
+      kind: 'customer'
+      id: string
+      sortAt: string
+      plate: string
+      second: string
+      third: string
+      movementLabel: 'In' | 'Out'
+      customer: CustomerTxRecord
+    }
 
 function isEmptiesLikeName(name: string) {
   return name === 'empties' || name.includes('mts')
@@ -176,6 +213,58 @@ function computeRunningStockOutCasesThrough(
     .reduce((sum, movement) => sum + getCasesTotal(movement), 0)
 }
 
+/** All-time stock-out through this transaction (for empties remain). */
+function computeRunningStockOutCasesAllTimeThrough(
+  movements: FullGoodsMovement[],
+  category: string,
+  mode: PrintablesMode,
+  asOf: FullGoodsMovement,
+) {
+  return movements
+    .filter(
+      (movement) =>
+        matchesPrintableCategory(movement, category, mode) &&
+        movement.movement_type === 'out' &&
+        isAtOrBeforeMovement(movement, asOf),
+    )
+    .reduce((sum, movement) => sum + getCasesTotal(movement), 0)
+}
+
+/** Running empties remain = cumulative in − cumulative out through this report. */
+function computeRunningEmptiesRemain(
+  movements: FullGoodsMovement[],
+  category: string,
+  mode: PrintablesMode,
+  asOf: FullGoodsMovement,
+) {
+  const stockIn = computeRunningStockInCasesThrough(movements, category, mode, asOf)
+  const stockOut = computeRunningStockOutCasesAllTimeThrough(movements, category, mode, asOf)
+  return stockIn - stockOut
+}
+
+/** Inventory remain through this report — same formula as Full B-Liquidation remain. */
+function computeRunningStocksRemain(
+  movements: FullGoodsMovement[],
+  category: string,
+  mode: PrintablesMode,
+  asOf: FullGoodsMovement,
+) {
+  const through = movements.filter((movement) => isAtOrBeforeMovement(movement, asOf))
+  return computeFullBLiquidationSummary(
+    through,
+    category,
+    asOf.movement_date,
+    mode,
+  ).totalStockRemain
+}
+
+function emptiesPrintUnit(productName: string) {
+  const name = productName.toLowerCase()
+  if (name.includes('shell')) return 'Shell'
+  if (name.includes('bottle')) return 'Bot'
+  return 'Case'
+}
+
 type ProductCatalogInfo = {
   price: number
   subcategoryName: string
@@ -224,9 +313,17 @@ function getProductCatalogInfo(
   return lookup.byName.get(normalizeCategoryName(productName)) ?? null
 }
 
-function shouldHidePrintSubcategory(category: string) {
+function shouldHidePrintSubcategory(category: string, mode?: PrintablesMode) {
   const normalized = normalizeCategoryName(category)
-  return normalized === 'smc' || normalized === 'magnolia'
+  if (normalized === 'smc' || normalized === 'magnolia') return true
+  // Pepsi empties print product name only (no subcategory prefix).
+  if (
+    mode === 'empties' &&
+    (normalized.includes('pepsi') || normalized === 'pcppi')
+  ) {
+    return true
+  }
+  return false
 }
 
 function formatPrintProductName(
@@ -234,9 +331,10 @@ function formatPrintProductName(
   productName: string,
   lookup: ProductCatalogLookup,
   category: string,
+  mode?: PrintablesMode,
 ) {
   const name = productName.trim()
-  if (shouldHidePrintSubcategory(category)) return name
+  if (shouldHidePrintSubcategory(category, mode)) return name
   const info = getProductCatalogInfo(productId, productName, lookup)
   if (!info?.subcategoryName) return name
   return `${info.subcategoryName} ${name}`
@@ -258,6 +356,14 @@ type PrintSheetProps = {
   productCatalog: ProductCatalogLookup
   allMovements: FullGoodsMovement[]
   isLast: boolean
+  /** Show cumulative stock-in / stock-out under the cases total (Nabunturan standard sheets). */
+  showRunningStockTotal?: boolean
+  /** Customer TX / Route Summary use sales numbers; warehouse movements use load numbers. */
+  numberFieldLabel?: 'Load no.' | 'Sales no.'
+}
+
+function isRouteSummaryMovementId(id: string) {
+  return /:(fulls|empties):/.test(id)
 }
 
 function PrintSheet({
@@ -268,6 +374,8 @@ function PrintSheet({
   productCatalog,
   allMovements,
   isLast,
+  showRunningStockTotal = false,
+  numberFieldLabel = 'Load no.',
 }: PrintSheetProps) {
   const printItems = getPrintItems(record)
   const printCasesTotal = getCasesTotal(record)
@@ -290,16 +398,32 @@ function PrintSheet({
         item.product_name,
         productCatalog,
         titleName,
+        mode,
       ),
       pricePerCase,
       amount: cases * pricePerCase,
     }
   })
   const skuAmountTotal = skuRows.reduce((sum, row) => sum + row.amount, 0)
-  const runningStockTotal =
-    record.movement_type === 'in'
-      ? computeRunningStockInCasesThrough(allMovements, titleName, mode, record)
-      : computeRunningStockOutCasesThrough(allMovements, titleName, mode, record)
+  const showRunning = printLayout === 'sku' || showRunningStockTotal
+  const runningStockTotal = !showRunning
+    ? 0
+    : mode === 'empties' && showRunningStockTotal
+      ? computeRunningEmptiesRemain(allMovements, titleName, mode, record)
+      : showRunningStockTotal && mode === 'fulls'
+        ? computeRunningStocksRemain(allMovements, titleName, mode, record)
+        : record.movement_type === 'in'
+          ? computeRunningStockInCasesThrough(allMovements, titleName, mode, record)
+          : computeRunningStockOutCasesThrough(allMovements, titleName, mode, record)
+  const runningStockLabel =
+    mode === 'empties' && showRunningStockTotal
+      ? 'Total empties remain'
+      : showRunningStockTotal && mode === 'fulls'
+        ? 'Total stocks'
+        : record.movement_type === 'in'
+          ? 'Total stock-in'
+          : 'Total stocks'
+  const showEmptiesUnitColumn = mode === 'empties' && printLayout !== 'sku'
 
   return (
     <div
@@ -307,7 +431,7 @@ function PrintSheet({
     >
       <header className="fulls-print-sheet__header">
         <p className="fulls-print-sheet__company">The CMJ Corporation</p>
-        <p className="fulls-print-sheet__branch">CMJ Davao</p>
+        <p className="fulls-print-sheet__branch">CMJ {record.branch || 'Davao'}</p>
         <p
           className={
             record.movement_type === 'in'
@@ -330,7 +454,7 @@ function PrintSheet({
             <dd>{record.truck_number}</dd>
           </div>
           <div className="fulls-print-meta__row">
-            <dt>Load no.</dt>
+            <dt>{numberFieldLabel}</dt>
             <dd>{record.load_number}</dd>
           </div>
           <div className="fulls-print-meta__row">
@@ -344,7 +468,9 @@ function PrintSheet({
             className={
               printLayout === 'sku'
                 ? 'fulls-print-items fulls-print-items--sku'
-                : 'fulls-print-items'
+                : showEmptiesUnitColumn
+                  ? 'fulls-print-items fulls-print-items--with-unit'
+                  : 'fulls-print-items'
             }
           >
             <thead>
@@ -358,6 +484,7 @@ function PrintSheet({
               ) : (
                 <tr>
                   <th>{itemsLabel}</th>
+                  {showEmptiesUnitColumn ? <th>Unit</th> : null}
                   <th>No. of cases</th>
                 </tr>
               )}
@@ -380,7 +507,7 @@ function PrintSheet({
                 )
               ) : printItems.length === 0 ? (
                 <tr>
-                  <td colSpan={2}>No items</td>
+                  <td colSpan={showEmptiesUnitColumn ? 3 : 2}>No items</td>
                 </tr>
               ) : (
                 printItems.map((item) => (
@@ -391,8 +518,12 @@ function PrintSheet({
                         item.product_name,
                         productCatalog,
                         titleName,
+                        mode,
                       )}
                     </td>
+                    {showEmptiesUnitColumn ? (
+                      <td className="is-unit">{emptiesPrintUnit(item.product_name)}</td>
+                    ) : null}
                     <td>{item.quantity}</td>
                   </tr>
                 ))
@@ -411,17 +542,23 @@ function PrintSheet({
           </table>
           {printLayout === 'sku' ? (
             <div className="fulls-print-sku-stock-total">
-              <span className="fulls-print-sku-stock-total__label">
-                {record.movement_type === 'in' ? 'Total stock-in' : 'Total stock-out'}:
-              </span>{' '}
+              <span className="fulls-print-sku-stock-total__label">{runningStockLabel}:</span>{' '}
               <span className="fulls-print-sku-stock-total__value">{runningStockTotal}</span>
             </div>
           ) : null}
           {printLayout === 'sku' ? null : (
-            <div className="fulls-print-items-total">
-              <span>Total</span>
-              <strong>{printCasesTotal}</strong>
-            </div>
+            <>
+              <div className="fulls-print-items-total">
+                <span>Total</span>
+                <strong>{printCasesTotal}</strong>
+              </div>
+              {showRunningStockTotal ? (
+                <div className="fulls-print-sku-stock-total">
+                  <span className="fulls-print-sku-stock-total__label">{runningStockLabel}:</span>{' '}
+                  <span className="fulls-print-sku-stock-total__value">{runningStockTotal}</span>
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       </div>
@@ -439,22 +576,44 @@ type PrintablesRecordsPanelProps = {
   mode?: PrintablesMode
   title?: string
   printLayout?: PrintablesPrintLayout
+  /** SKU layout only: show In/Out checkboxes and filter by them. Default true. */
+  filterByMovementType?: boolean
+  branch?: UserBranch | null
 }
 
 export function PrintablesRecordsPanel({
   mode = 'fulls',
   title,
   printLayout = 'standard',
+  filterByMovementType = printLayout === 'sku',
+  branch = 'Davao',
 }: PrintablesRecordsPanelProps) {
   const categories = mode === 'empties' ? [...EMPTIES_CATEGORIES] : [...FULLS_CATEGORIES]
   const [selectedCategory, setSelectedCategory] = useState(categories[0])
   const [selectedMovementType, setSelectedMovementType] = useState<'in' | 'out'>('in')
   const [filterDate, setFilterDate] = useState(todayIsoDate())
   const [movements, setMovements] = useState<FullGoodsMovement[]>([])
+  const [customerRecords, setCustomerRecords] = useState<CustomerTxRecord[]>([])
+  const [customerStockMovements, setCustomerStockMovements] = useState<FullGoodsMovement[]>([])
+  const [routePrintMovements, setRoutePrintMovements] = useState<FullGoodsMovement[]>([])
   const [productCatalog, setProductCatalog] = useState<ProductCatalogLookup>(EMPTY_PRODUCT_CATALOG)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [printRecords, setPrintRecords] = useState<FullGoodsMovement[]>([])
+  const [printJobs, setPrintJobs] = useState<
+    Array<{ record: FullGoodsMovement; numberFieldLabel: 'Load no.' | 'Sales no.' }>
+  >([])
+  const [printingRowId, setPrintingRowId] = useState<string | null>(null)
+  const useSkuLayout = printLayout === 'sku'
+  const useMovementFilter = useSkuLayout && filterByMovementType
+  const showMovementColumn = !useMovementFilter
+  const catalogBranch = branch ?? 'Davao'
+  const mergeCustomerTx =
+    catalogBranch === 'Nabunturan' &&
+    !useSkuLayout &&
+    (mode === 'fulls' || mode === 'empties')
+  const customerCompany = mergeCustomerTx
+    ? printableCategoryToCustomerCompany(selectedCategory)
+    : null
 
   useEffect(() => {
     setSelectedCategory(mode === 'empties' ? EMPTIES_CATEGORIES[0] : FULLS_CATEGORIES[0])
@@ -465,9 +624,12 @@ export function PrintablesRecordsPanel({
 
     async function load() {
       setLoading(true)
+      setError(null)
+
       const [movementsResult, catalogResult] = await Promise.all([
-        listFullGoodsMovements(),
-        listCatalogTree(),
+        listFullGoodsMovements(catalogBranch),
+        // Nabunturan/Davao: only products checked in SKU for this branch.
+        listCatalogTree(catalogBranch, { forTransactions: true }),
       ])
       if (cancelled) return
 
@@ -481,81 +643,255 @@ export function PrintablesRecordsPanel({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [catalogBranch])
+
+  useEffect(() => {
+    if (!mergeCustomerTx || !customerCompany) {
+      setCustomerRecords([])
+      setCustomerStockMovements([])
+      setRoutePrintMovements([])
+      return
+    }
+
+    let cancelled = false
+
+    async function loadCustomerTx() {
+      // Same history window as B-Liquidation so "Total stocks" remain matches.
+      // Fulls sales = Out; empties returns = In (customer TX + route summary).
+      const [customerResult, routeResult] = await Promise.all([
+        listCustomerTransactionsWithItemsInRange(
+          catalogBranch,
+          '2020-01-01',
+          filterDate,
+          customerCompany!,
+        ),
+        listRouteSummariesWithItemsInRange(catalogBranch, '2020-01-01', filterDate),
+      ])
+      if (cancelled) return
+      if (customerResult.error) setError(customerResult.error)
+      else if (routeResult.error) setError(routeResult.error)
+
+      const customerConverted = customerResult.data.map(({ transaction, items }) =>
+        customerTxToPrintableMovement(transaction, items, mode, selectedCategory),
+      )
+      const routeConverted = routeResult.data
+        .map(({ summary, items }) =>
+          routeSummaryToPrintableMovement(
+            summary,
+            items,
+            mode,
+            selectedCategory,
+            customerCompany!,
+          ),
+        )
+        .filter((row): row is NonNullable<typeof row> => row != null)
+
+      setCustomerStockMovements([...customerConverted, ...routeConverted])
+      setRoutePrintMovements(routeConverted)
+
+      const dayRecords = customerResult.data
+        .map((entry) => entry.transaction)
+        .filter((row) => isoDateFromTimestamp(row.transaction_at || row.created_at) === filterDate)
+      setCustomerRecords(dayRecords)
+    }
+
+    void loadCustomerTx()
+    return () => {
+      cancelled = true
+    }
+  }, [mergeCustomerTx, customerCompany, catalogBranch, filterDate, mode, selectedCategory])
+
+  const stockMovements = useMemo(() => {
+    if (!mergeCustomerTx || customerStockMovements.length === 0) return movements
+    const byId = new Map<string, FullGoodsMovement>()
+    for (const movement of movements) byId.set(movement.id, movement)
+    for (const movement of customerStockMovements) byId.set(movement.id, movement)
+    return [...byId.values()]
+  }, [movements, customerStockMovements, mergeCustomerTx])
 
   useEffect(() => {
     function onAfterPrint() {
-      setPrintRecords([])
+      setPrintJobs([])
+      setPrintingRowId(null)
     }
     window.addEventListener('afterprint', onAfterPrint)
     return () => window.removeEventListener('afterprint', onAfterPrint)
   }, [])
 
   useEffect(() => {
-    if (printRecords.length === 0) return
+    if (printJobs.length === 0) return
     const timer = window.setTimeout(() => window.print(), 150)
     return () => window.clearTimeout(timer)
-  }, [printRecords])
+  }, [printJobs])
 
-  const records = useMemo(() => {
+  const movementRecords = useMemo(() => {
     return movements.filter((item) => {
       if (!matchesPrintableCategory(item, selectedCategory, mode)) return false
-      if (printLayout === 'sku' && item.movement_type !== selectedMovementType) return false
+      if (useMovementFilter && item.movement_type !== selectedMovementType) return false
       return item.movement_date === filterDate
     })
-  }, [movements, selectedCategory, selectedMovementType, filterDate, mode, printLayout])
+  }, [
+    movements,
+    selectedCategory,
+    selectedMovementType,
+    filterDate,
+    mode,
+    useMovementFilter,
+  ])
+
+  const mergedRows = useMemo(() => {
+    const movementRows: MergedPrintablesRow[] = movementRecords.map((movement) => ({
+      kind: 'movement' as const,
+      id: `m-${movement.id}`,
+      sortAt: movement.created_at || `${movement.movement_date}T00:00:00`,
+      plate: movement.truck_number,
+      second: movement.load_number,
+      third: movement.location,
+      movementLabel: movement.movement_type === 'in' ? ('In' as const) : ('Out' as const),
+      movement,
+    }))
+
+    if (!mergeCustomerTx) return movementRows
+
+    const customerRows: MergedPrintablesRow[] = customerRecords.map((customer) => ({
+      kind: 'customer' as const,
+      id: `c-${customer.id}`,
+      sortAt: customer.transaction_at || customer.created_at,
+      plate: formatCustomerTxPlateDisplay(customer.truck_no, customer.plate_no),
+      second: customer.sales_no,
+      third: customer.customer_name || '—',
+      movementLabel: (mode === 'empties' ? 'In' : 'Out') as 'In' | 'Out',
+      customer,
+    }))
+
+    const routeRows: MergedPrintablesRow[] = routePrintMovements
+      .filter(
+        (movement) =>
+          movement.movement_date === filterDate &&
+          matchesPrintableCategory(movement, selectedCategory, mode),
+      )
+      .map((movement) => ({
+        kind: 'movement' as const,
+        id: `r-${movement.id}`,
+        sortAt: movement.created_at || `${movement.movement_date}T00:00:00`,
+        plate: movement.truck_number || '—',
+        second: movement.load_number || '—',
+        third: movement.location || '—',
+        movementLabel: movement.movement_type === 'in' ? ('In' as const) : ('Out' as const),
+        movement,
+      }))
+
+    return [...movementRows, ...customerRows, ...routeRows].sort((a, b) =>
+      a.sortAt.localeCompare(b.sortAt),
+    )
+  }, [
+    movementRecords,
+    customerRecords,
+    routePrintMovements,
+    mergeCustomerTx,
+    filterDate,
+    selectedCategory,
+    mode,
+  ])
 
   const panelTitle =
     title ?? (mode === 'empties' ? 'Empties In/Out Printables' : 'Fulls In/Out Printables')
   const goodsLabel = mode === 'empties' ? 'Empties' : 'Full Goods'
+  const secondColumnLabel = mergeCustomerTx ? 'Load / Sales no.' : 'Load no.'
+  const thirdColumnLabel = mergeCustomerTx ? 'Location / Customer' : 'Location'
+
+  async function loadCustomerAsMovement(record: CustomerTxRecord) {
+    const detail = await getCustomerTransactionDetail(record.id)
+    if (detail.error || !detail.data) {
+      return { data: null as FullGoodsMovement | null, error: detail.error }
+    }
+    return {
+      data: customerTxToPrintableMovement(
+        detail.data.transaction,
+        detail.data.items,
+        mode,
+        selectedCategory,
+      ),
+      error: null as string | null,
+    }
+  }
+
+  async function printMergedRows(rows: MergedPrintablesRow[], busyId = 'batch') {
+    if (printingRowId || rows.length === 0) return
+    setPrintingRowId(busyId)
+    setError(null)
+
+    const jobs: Array<{ record: FullGoodsMovement; numberFieldLabel: 'Load no.' | 'Sales no.' }> =
+      []
+    for (const row of rows) {
+      if (row.kind === 'movement') {
+        const fromRoute =
+          row.id.startsWith('r-') || isRouteSummaryMovementId(row.movement.id)
+        jobs.push({
+          record: row.movement,
+          numberFieldLabel: fromRoute ? 'Sales no.' : 'Load no.',
+        })
+        continue
+      }
+      const result = await loadCustomerAsMovement(row.customer)
+      if (result.error || !result.data) {
+        setPrintingRowId(null)
+        setError(result.error ?? `Failed to load sales ${row.customer.sales_no} for printing.`)
+        return
+      }
+      jobs.push({
+        record: result.data,
+        numberFieldLabel: 'Sales no.',
+      })
+    }
+
+    setPrintingRowId(null)
+    setPrintJobs(jobs)
+  }
+
+  async function printOneRow(row: MergedPrintablesRow) {
+    await printMergedRows([row], row.id)
+  }
+
+  async function printAllRows() {
+    const rows =
+      !mergeCustomerTx && useSkuLayout
+        ? sortMovementsChronologically(movementRecords).map((movement) => ({
+            kind: 'movement' as const,
+            id: `m-${movement.id}`,
+            sortAt: movement.created_at,
+            plate: movement.truck_number,
+            second: movement.load_number,
+            third: movement.location,
+            movementLabel:
+              movement.movement_type === 'in' ? ('In' as const) : ('Out' as const),
+            movement,
+          }))
+        : mergedRows
+    await printMergedRows(rows)
+  }
 
   return (
-    <section className="printables-panel fulls-printables" aria-label={panelTitle}>
-      <header className="printables-panel__head fulls-printables-head no-print">
-        <h1>{panelTitle}</h1>
-      </header>
+    <>
+      <section className="printables-panel fulls-printables" aria-label={panelTitle}>
+        <header className="printables-panel__head fulls-printables-head no-print">
+          <h1>{panelTitle}</h1>
+        </header>
 
-      <div className="fulls-printables-filters-row no-print">
-        <div className="fulls-printables-filters">
-          <fieldset className="fulls-printables-categories">
-            <legend>Category</legend>
-            <div className="fulls-printables-categories__row" role="radiogroup" aria-label="Category">
-              {categories.map((category) => {
-                const checked = selectedCategory === category
-                return (
-                  <label
-                    key={category}
-                    className={
-                      checked
-                        ? 'fulls-printables-check is-checked'
-                        : 'fulls-printables-check'
-                    }
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => setSelectedCategory(category)}
-                    />
-                    <span>{category}</span>
-                  </label>
-                )
-              })}
-            </div>
-          </fieldset>
-
-          {printLayout === 'sku' ? (
+        <div className="fulls-printables-filters-row no-print">
+          <div className="fulls-printables-filters">
             <fieldset className="fulls-printables-categories">
-              <legend>In/Out</legend>
+              <legend>Category</legend>
               <div
                 className="fulls-printables-categories__row"
                 role="radiogroup"
-                aria-label="In or Out"
+                aria-label="Category"
               >
-                {MOVEMENT_TYPE_OPTIONS.map((option) => {
-                  const checked = selectedMovementType === option.value
+                {categories.map((category) => {
+                  const checked = selectedCategory === category
                   return (
                     <label
-                      key={option.value}
+                      key={category}
                       className={
                         checked
                           ? 'fulls-printables-check is-checked'
@@ -565,111 +901,146 @@ export function PrintablesRecordsPanel({
                       <input
                         type="checkbox"
                         checked={checked}
-                        onChange={() => setSelectedMovementType(option.value)}
+                        onChange={() => setSelectedCategory(category)}
                       />
-                      <span>{option.label}</span>
+                      <span>{category}</span>
                     </label>
                   )
                 })}
               </div>
             </fieldset>
-          ) : null}
 
-          <label className="fulls-printables-date">
-            <span>Date</span>
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(event) => setFilterDate(event.target.value)}
-            />
-          </label>
+            {useMovementFilter ? (
+              <fieldset className="fulls-printables-categories">
+                <legend>In/Out</legend>
+                <div
+                  className="fulls-printables-categories__row"
+                  role="radiogroup"
+                  aria-label="In or Out"
+                >
+                  {MOVEMENT_TYPE_OPTIONS.map((option) => {
+                    const checked = selectedMovementType === option.value
+                    return (
+                      <label
+                        key={option.value}
+                        className={
+                          checked
+                            ? 'fulls-printables-check is-checked'
+                            : 'fulls-printables-check'
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => setSelectedMovementType(option.value)}
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </fieldset>
+            ) : null}
+
+            <label className="fulls-printables-date">
+              <span>Date</span>
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(event) => setFilterDate(event.target.value)}
+              />
+            </label>
+          </div>
+
+          <button
+            type="button"
+            className="fulls-printables-print-btn fulls-printables-print-all"
+            disabled={loading || mergedRows.length === 0 || Boolean(printingRowId)}
+            onClick={() => void printAllRows()}
+          >
+            <PrintIcon />
+            Print all
+          </button>
         </div>
 
-        <button
-          type="button"
-          className="fulls-printables-print-btn fulls-printables-print-all"
-          disabled={loading || records.length === 0}
-          onClick={() =>
-            setPrintRecords(
-              printLayout === 'sku' ? sortMovementsChronologically(records) : [...records],
-            )
-          }
-        >
-          <PrintIcon />
-          Print all
-        </button>
-      </div>
+        {error ? <p className="catalog-error no-print">{error}</p> : null}
 
-      {error ? <p className="catalog-error no-print">{error}</p> : null}
+        {loading ? <p className="catalog-empty no-print">Loading records…</p> : null}
 
-      {loading ? <p className="catalog-empty no-print">Loading records…</p> : null}
+        {!loading && mergedRows.length === 0 ? (
+          <div className="printables-panel__empty no-print">
+            <p className="printables-panel__empty-title">No records found</p>
+            <p>
+              No {selectedCategory} {goodsLabel}
+              {mergeCustomerTx ? ', customer, or route transaction' : ''}{' '}
+              {useMovementFilter ? (selectedMovementType === 'in' ? 'In' : 'Out') : ''} records for{' '}
+              {filterDate}.
+            </p>
+          </div>
+        ) : null}
 
-      {!loading && records.length === 0 ? (
-        <div className="printables-panel__empty no-print">
-          <p className="printables-panel__empty-title">No records found</p>
-          <p>
-            No {selectedCategory} {goodsLabel}{' '}
-            {printLayout === 'sku' ? (selectedMovementType === 'in' ? 'In' : 'Out') : ''} records for{' '}
-            {filterDate}.
-          </p>
-        </div>
-      ) : null}
-
-      {!loading && records.length > 0 ? (
-        <div className="fg-table-wrap fulls-printables-table no-print">
-          <table className="fg-table">
-            <thead>
-              <tr>
-                <th>Plate no.</th>
-                <th>Load no.</th>
-                <th>Location</th>
-                {printLayout === 'sku' ? null : <th>In/Out</th>}
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.truck_number}</td>
-                  <td>{item.load_number}</td>
-                  <td>{item.location}</td>
-                  {printLayout === 'sku' ? null : (
-                    <td>{item.movement_type === 'in' ? 'In' : 'Out'}</td>
-                  )}
-                  <td className="fg-row-actions">
-                    <button
-                      type="button"
-                      className="fulls-printables-print-btn"
-                      onClick={() => setPrintRecords([item])}
-                    >
-                      <PrintIcon />
-                      Print
-                    </button>
-                  </td>
+        {!loading && mergedRows.length > 0 ? (
+          <div className="fg-table-wrap fulls-printables-table no-print">
+            <table className="fg-table">
+              <thead>
+                <tr>
+                  <th>Plate no.</th>
+                  <th>{secondColumnLabel}</th>
+                  <th>{thirdColumnLabel}</th>
+                  {showMovementColumn ? <th>In/Out</th> : null}
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+              </thead>
+              <tbody>
+                {mergedRows.map((row) => {
+                  const busy = printingRowId === row.id || printingRowId === 'batch'
+                  return (
+                    <tr key={row.id}>
+                      <td>{row.plate}</td>
+                      <td>{row.second}</td>
+                      <td>{row.third}</td>
+                      {showMovementColumn ? <td>{row.movementLabel}</td> : null}
+                      <td className="fg-row-actions">
+                        <button
+                          type="button"
+                          className="fulls-printables-print-btn"
+                          disabled={busy}
+                          onClick={() => void printOneRow(row)}
+                        >
+                          <PrintIcon />
+                          {busy ? '…' : 'Print'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
 
-      {printRecords.length > 0 ? (
-        <div className="fulls-print-batch print-only" aria-hidden="true">
-          {printRecords.map((record, index) => (
-            <PrintSheet
-              key={record.id}
-              record={record}
-              fallbackCategory={selectedCategory}
-              mode={mode}
-              printLayout={printLayout}
-              productCatalog={productCatalog}
-              allMovements={movements}
-              isLast={index === printRecords.length - 1}
-            />
-          ))}
-        </div>
-      ) : null}
-    </section>
+        {printJobs.length > 0 ? (
+          <div className="fulls-print-batch print-only" aria-hidden="true">
+            {printJobs.map((job, index) => (
+              <PrintSheet
+                key={`${job.record.id}-${index}`}
+                record={job.record}
+                fallbackCategory={selectedCategory}
+                mode={mode}
+                printLayout={printLayout}
+                productCatalog={productCatalog}
+                allMovements={stockMovements}
+                numberFieldLabel={job.numberFieldLabel}
+                showRunningStockTotal={
+                  !useSkuLayout && (catalogBranch === 'Nabunturan' || mode === 'empties')
+                }
+                isLast={index === printJobs.length - 1}
+              />
+            ))}
+          </div>
+        ) : null}
+      </section>
+    </>
   )
 }
 
@@ -677,6 +1048,8 @@ type FullsPrintablesPanelProps = {
   mode?: PrintablesMode
   title?: string
   printLayout?: PrintablesPrintLayout
+  filterByMovementType?: boolean
+  branch?: UserBranch | null
 }
 
 export function FullsPrintablesPanel(props: FullsPrintablesPanelProps) {

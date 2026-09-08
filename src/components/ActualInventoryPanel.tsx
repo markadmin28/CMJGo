@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import type { UserBranch } from '../lib/branches'
 import { listCatalogTree, type CatalogTreeCategory } from '../lib/catalog'
 import {
   deleteActualInventoriesForMonth,
@@ -9,7 +10,9 @@ import {
   saveActualInventoriesForMonth,
   type ActualInventoryMonthSummary,
 } from '../lib/actualInventory'
+import type { ActualInventoryCompany } from './ActualInventoryOptionsPopover'
 import schemaSql from '../../supabase/actual_inventory_schema.sql?raw'
+import schemaBranchSql from '../../supabase/actual_inventory_branch_schema.sql?raw'
 import './CatalogPanel.css'
 import './FthDiscountPanel.css'
 import './ActualInventoryPanel.css'
@@ -17,6 +20,44 @@ import './ActualInventoryPanel.css'
 function currentMonthValue() {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+function normalizeName(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function nameMatchesCompany(name: string, company: ActualInventoryCompany) {
+  const n = normalizeName(name)
+  if (company === 'Pepsi') {
+    return n.includes('pepsi') || n === 'pcppi' || n.startsWith('pcppi ')
+  }
+  if (company === 'SMC') return n.includes('smc')
+  return n.includes('magnolia') || n.includes('magnoia')
+}
+
+/** Limit catalog to FG + matching Empties MTS for one company (Nabunturan). */
+function filterTreeForCompany(
+  tree: CatalogTreeCategory[],
+  company: ActualInventoryCompany | null | undefined,
+) {
+  if (!company) return tree
+  const next: CatalogTreeCategory[] = []
+  for (const category of tree) {
+    const catName = normalizeName(category.name)
+    if (catName === 'empties') {
+      const subcategories = category.subcategories.filter((sub) =>
+        nameMatchesCompany(sub.name, company),
+      )
+      if (subcategories.length > 0) {
+        next.push({ ...category, subcategories })
+      }
+      continue
+    }
+    if (nameMatchesCompany(category.name, company)) {
+      next.push(category)
+    }
+  }
+  return next
 }
 
 function SearchIcon() {
@@ -39,8 +80,16 @@ function matchesRecordSearch(query: string, record: ActualInventoryMonthSummary)
   )
 }
 
-export function ActualInventoryPanel() {
+export function ActualInventoryPanel({
+  branch = 'Davao',
+  company = null,
+}: {
+  branch?: UserBranch | null
+  /** When set (Nabunturan), only show that company's FG + MTS products. */
+  company?: ActualInventoryCompany | null
+}) {
   const { user } = useAuth()
+  const catalogBranch = branch ?? 'Davao'
   const [tree, setTree] = useState<CatalogTreeCategory[]>([])
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null)
   const [monthValue, setMonthValue] = useState(currentMonthValue)
@@ -48,7 +97,16 @@ export function ActualInventoryPanel() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saved, setSaved] = useState(false)
+  const [saveToast, setSaveToast] = useState<{
+    updated: boolean
+    monthLabel: string
+    branch: string
+    companyLabel: string
+    categoryCount: number
+    productCount: number
+  } | null>(null)
+  const [saveToastPaused, setSaveToastPaused] = useState(false)
+  const [monthHasSavedRecord, setMonthHasSavedRecord] = useState(false)
   const [missingTable, setMissingTable] = useState(false)
   const [copied, setCopied] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -59,6 +117,7 @@ export function ActualInventoryPanel() {
   const [deletingMonth, setDeletingMonth] = useState<string | null>(null)
 
   const activeCategory = tree.find((item) => item.id === activeCategoryId) ?? null
+  const title = company ? `${company} Actual Inventory` : 'Actual Inventory'
 
   const filteredRecordSummaries = useMemo(
     () => recordSummaries.filter((record) => matchesRecordSearch(recordSearch, record)),
@@ -71,9 +130,9 @@ export function ActualInventoryPanel() {
     async function load() {
       setLoading(true)
       setError(null)
-      setSaved(false)
+      setSaveToast(null)
 
-      const catalogResult = await listCatalogTree()
+      const catalogResult = await listCatalogTree(catalogBranch, { forTransactions: true })
       if (cancelled) return
 
       if (catalogResult.error) {
@@ -84,20 +143,22 @@ export function ActualInventoryPanel() {
         return
       }
 
-      setTree(catalogResult.data)
-      setActiveCategoryId((prev) =>
-        prev && catalogResult.data.some((item) => item.id === prev)
+      setTree(filterTreeForCompany(catalogResult.data, company))
+      setActiveCategoryId((prev) => {
+        const filtered = filterTreeForCompany(catalogResult.data, company)
+        return prev && filtered.some((item) => item.id === prev)
           ? prev
-          : catalogResult.data[0]?.id ?? null,
-      )
+          : filtered[0]?.id ?? null
+      })
 
-      const savedResult = await listActualInventoriesForMonth(monthValue)
+      const savedResult = await listActualInventoriesForMonth(monthValue, catalogBranch)
       if (cancelled) return
 
       setMissingTable(savedResult.missingTable)
       if (savedResult.error) {
         setError(savedResult.error)
         setQuantities({})
+        setMonthHasSavedRecord(false)
         setLoading(false)
         return
       }
@@ -111,6 +172,7 @@ export function ActualInventoryPanel() {
         }
       }
       setQuantities(nextQuantities)
+      setMonthHasSavedRecord(savedResult.data.length > 0)
       setLoading(false)
     }
 
@@ -118,10 +180,10 @@ export function ActualInventoryPanel() {
     return () => {
       cancelled = true
     }
-  }, [monthValue])
+  }, [monthValue, catalogBranch, company])
 
   async function copySql() {
-    await navigator.clipboard.writeText(schemaSql)
+    await navigator.clipboard.writeText(`${schemaSql}\n\n${schemaBranchSql}`)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1600)
   }
@@ -130,7 +192,7 @@ export function ActualInventoryPanel() {
     setRecordsLoading(true)
     setRecordsError(null)
 
-    const result = await listActualInventoryMonthSummaries()
+    const result = await listActualInventoryMonthSummaries(catalogBranch)
     setRecordsLoading(false)
 
     if (result.missingTable) {
@@ -169,7 +231,7 @@ export function ActualInventoryPanel() {
     setDeletingMonth(record.monthValue)
     setRecordsError(null)
 
-    const result = await deleteActualInventoriesForMonth(record.monthValue)
+    const result = await deleteActualInventoriesForMonth(record.monthValue, catalogBranch)
     setDeletingMonth(null)
 
     if (result.missingTable) {
@@ -185,7 +247,13 @@ export function ActualInventoryPanel() {
     setRecordSummaries((prev) => prev.filter((item) => item.monthValue !== record.monthValue))
     if (record.monthValue === monthValue) {
       setQuantities({})
+      setMonthHasSavedRecord(false)
     }
+  }
+
+  function dismissSaveToast() {
+    setSaveToast(null)
+    setSaveToastPaused(false)
   }
 
   async function handleSave(event: FormEvent) {
@@ -193,13 +261,17 @@ export function ActualInventoryPanel() {
     if (saving) return
     setSaving(true)
     setError(null)
-    setSaved(false)
+    setSaveToast(null)
+
+    const wasUpdate = monthHasSavedRecord
+    const productCount = Object.values(quantities).filter((value) => Number(value) > 0).length
 
     const result = await saveActualInventoriesForMonth({
       monthValue,
       categories: tree,
       quantities,
       createdBy: user?.id,
+      branch: catalogBranch,
     })
     setSaving(false)
 
@@ -213,18 +285,25 @@ export function ActualInventoryPanel() {
       return
     }
 
-    setSaved(true)
-    window.setTimeout(() => setSaved(false), 2000)
+    setMonthHasSavedRecord(true)
+    setSaveToast({
+      updated: wasUpdate,
+      monthLabel: formatMonthLabel(monthValue),
+      branch: catalogBranch,
+      companyLabel: company ?? 'All companies',
+      categoryCount: tree.length,
+      productCount,
+    })
     if (searchOpen) {
       await loadRecordSummaries()
     }
   }
 
   return (
-    <section className="actual-inventory" aria-label="Actual Inventory">
+    <section className="actual-inventory" aria-label={title}>
       <header className="fth-head actual-inventory-head">
         <div>
-          <h1>Actual Inventory</h1>
+          <h1>{title}</h1>
           <p>Enter end-of-month counts. Saved actuals become next month beginning inventory.</p>
         </div>
         <div className="actual-inventory-head-actions">
@@ -356,13 +435,99 @@ export function ActualInventoryPanel() {
 
           <div className="fth-save-bar">
             <button type="submit" className="btn-mini" disabled={saving || missingTable}>
-              {saving ? 'Saving…' : 'Save actual inventory'}
+              {saving ? 'Saving…' : monthHasSavedRecord ? 'Update actual inventory' : 'Save actual inventory'}
             </button>
-            {saved ? (
-              <span className="fth-save-note">Saved. These counts become next month beginning.</span>
-            ) : null}
           </div>
         </form>
+      ) : null}
+
+      {saveToast ? (
+        <div className="ai-toast-backdrop no-print" onClick={dismissSaveToast} role="presentation">
+          <div
+            className={`ai-toast${saveToastPaused ? ' is-paused' : ''}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ai-toast-title"
+            aria-describedby="ai-toast-detail"
+            onClick={(event) => event.stopPropagation()}
+            onMouseEnter={() => setSaveToastPaused(true)}
+            onMouseLeave={() => setSaveToastPaused(false)}
+            onFocusCapture={() => setSaveToastPaused(true)}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setSaveToastPaused(false)
+              }
+            }}
+          >
+            <div className="ai-toast__glow" aria-hidden="true" />
+            <div className="ai-toast__check" aria-hidden="true">
+              <svg viewBox="0 0 52 52" width="52" height="52">
+                <path
+                  className="ai-toast__check-path"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M14 27l8 8 16-18"
+                />
+              </svg>
+            </div>
+            <p className="ai-toast__eyebrow">Success</p>
+            <h2 id="ai-toast-title">
+              {saveToast.updated ? 'Actual inventory updated' : 'Actual inventory saved'}
+            </h2>
+            <p id="ai-toast-detail">
+              These counts become beginning inventory for the next month.
+            </p>
+            <div className="ai-toast__meta" aria-label="Saved record summary">
+              <div className="ai-toast__chip">
+                <span>Branch</span>
+                <strong>{saveToast.branch}</strong>
+              </div>
+              <div className="ai-toast__chip">
+                <span>Company</span>
+                <strong>{saveToast.companyLabel}</strong>
+              </div>
+              <div className="ai-toast__chip">
+                <span>Month</span>
+                <strong>{saveToast.monthLabel}</strong>
+              </div>
+              <div className="ai-toast__chip is-count">
+                <span>Counted</span>
+                <strong>
+                  {saveToast.productCount} SKU · {saveToast.categoryCount} cat.
+                </strong>
+              </div>
+            </div>
+            <div className="ai-toast__actions">
+              <button
+                type="button"
+                className="ai-toast__btn ai-toast__btn--ghost"
+                onClick={() => {
+                  dismissSaveToast()
+                  void openSearch()
+                }}
+              >
+                View records
+              </button>
+              <button
+                type="button"
+                className="ai-toast__btn ai-toast__btn--primary"
+                onClick={dismissSaveToast}
+              >
+                OK
+              </button>
+            </div>
+            <div className="ai-toast__progress" aria-hidden="true">
+              <span
+                onAnimationEnd={() => {
+                  if (!saveToastPaused) dismissSaveToast()
+                }}
+              />
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {searchOpen ? (

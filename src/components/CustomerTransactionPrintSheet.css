@@ -1,0 +1,330 @@
+.ctx-print-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: letter portrait;
+    margin: 6mm;
+  }
+
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .dash-glow,
+  .dash-header,
+  .dash-module-bar,
+  .no-print,
+  .ctx-panel,
+  .ctx-ledger-backdrop,
+  .ctx-toast-backdrop,
+  .ctx-search-backdrop,
+  .modal-backdrop {
+    display: none !important;
+  }
+
+  .dash-shell,
+  .dash-main {
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Fit slip into the top-left half of the page only. */
+  .ctx-print-sheet,
+  .ctx-print-sheet.is-active {
+    display: block !important;
+    box-sizing: border-box;
+    width: 48%;
+    max-width: 95mm;
+    max-height: 48%;
+    overflow: hidden;
+    color: #111;
+    font-family: Arial, Helvetica, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    transform-origin: top left;
+  }
+
+  .ctx-printables-batch__item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ctx-printables-batch__item--followed {
+    margin-bottom: 0.55rem;
+    padding-bottom: 0.35rem;
+  }
+
+  .ctx-printables-batch__item .ctx-print-sheet,
+  .ctx-printables-batch__item .ctx-print-sheet.is-active {
+    max-height: none;
+    overflow: visible;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .ctx-print-sheet__brand {
+    text-align: center;
+    margin: 0 0 0.16rem;
+    padding: 0 0 0.1rem;
+    border-bottom: 1px solid #111;
+  }
+
+  .ctx-print-sheet__org {
+    margin: 0;
+    font-size: 8.5pt;
+    font-weight: 800;
+    line-height: 1.05;
+  }
+
+  .ctx-print-sheet__branch {
+    margin: 0.02rem 0 0;
+    font-size: 6.5pt;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  .ctx-print-sheet__title {
+    margin: 0.06rem 0 0;
+    font-size: 7pt;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+
+  .ctx-print-sheet__meta {
+    display: grid;
+    gap: 0;
+    margin: 0 0 0.16rem;
+  }
+
+  .ctx-print-sheet__meta > div {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 0.12rem;
+    align-items: baseline;
+    font-size: 6.5pt;
+    line-height: 1.15;
+  }
+
+  .ctx-print-sheet__meta dt {
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .ctx-print-sheet__meta dd {
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .ctx-print-sheet__meta dd.is-customer {
+    color: #dc2626;
+  }
+
+  .ctx-print-sheet__meta dd.is-meta {
+    color: #2563eb;
+  }
+
+  .ctx-print-sheet__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 6pt;
+    table-layout: fixed;
+    line-height: 1.15;
+  }
+
+  .ctx-print-sheet__table col.col-qty {
+    width: 6%;
+  }
+
+  .ctx-print-sheet__table col.col-unit {
+    width: 7%;
+  }
+
+  .ctx-print-sheet__table col.col-desc {
+    width: 42%;
+  }
+
+  .ctx-print-sheet__table col.col-price,
+  .ctx-print-sheet__table col.col-disc,
+  .ctx-print-sheet__table col.col-total,
+  .ctx-print-sheet__table col.col-amount {
+    width: 11.25%;
+  }
+
+  .ctx-print-sheet__table th,
+  .ctx-print-sheet__table td {
+    padding: 0.04rem 0.08rem;
+    border: 1px solid #94a3b8;
+    vertical-align: top;
+  }
+
+  .ctx-print-sheet__table th {
+    background: #f9c5d1 !important;
+    font-weight: 700;
+    text-align: left;
+    white-space: nowrap;
+    font-size: 5.5pt;
+  }
+
+  .ctx-print-sheet__table .is-num {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .ctx-print-sheet__table .is-unit {
+    text-align: center;
+    white-space: nowrap;
+    padding-left: 0.04rem;
+    padding-right: 0.04rem;
+  }
+
+  .ctx-print-sheet__table .is-desc {
+    text-align: left;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .ctx-print-sheet__table .is-label {
+    text-align: right;
+    font-weight: 700;
+  }
+
+  .ctx-print-sheet__table tr.is-subtotal td {
+    font-weight: 700;
+    padding-top: 0.06rem;
+    padding-bottom: 0.06rem;
+  }
+
+  .ctx-print-sheet__table .is-red {
+    color: #dc2626;
+    font-weight: 800;
+  }
+
+  .ctx-print-sheet__table tr.is-section td {
+    background: #f9c5d1 !important;
+    color: #dc2626;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-align: center;
+    font-size: 6pt;
+    padding: 0.05rem 0.08rem;
+  }
+
+  .ctx-print-sheet__footer {
+    display: grid;
+    justify-content: end;
+    gap: 0.02rem;
+    margin-top: 0.18rem;
+    font-size: 6.5pt;
+    line-height: 1.15;
+  }
+
+  .ctx-print-sheet__row {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 0.3rem;
+    justify-content: end;
+    align-items: baseline;
+  }
+
+  .ctx-print-sheet__row span {
+    font-weight: 700;
+    text-align: right;
+  }
+
+  .ctx-print-sheet__row strong {
+    min-width: 2.75rem;
+    text-align: right;
+    font-weight: 800;
+  }
+
+  .ctx-print-sheet__row .is-blue {
+    color: #2563eb;
+  }
+
+  .ctx-print-sheet__row .is-green {
+    color: #16a34a;
+  }
+
+  .ctx-print-sheet__row .is-red {
+    color: #dc2626;
+  }
+
+  .ctx-print-sheet__end {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.35rem;
+    padding-top: 0.1rem;
+  }
+
+  .ctx-print-sheet__end-line {
+    flex: 1;
+    height: 0;
+    border-top: 1.5px dashed #9ca3af;
+  }
+
+  .ctx-print-sheet__end-label {
+    flex-shrink: 0;
+    font-size: 6pt;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #9ca3af;
+  }
+
+  /* DSL Printables: details left, product + payables tables right. */
+  .ctx-print-sheet.ctx-print-sheet--dsl,
+  .ctx-print-sheet.ctx-print-sheet--dsl.is-active {
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .ctx-print-sheet--dsl .ctx-print-sheet__dsl-body {
+    display: grid;
+    grid-template-columns: minmax(42mm, 0.34fr) minmax(0, 1fr);
+    gap: 0.35rem 0.55rem;
+    align-items: start;
+  }
+
+  .ctx-print-sheet--dsl .ctx-print-sheet__dsl-details {
+    min-width: 0;
+  }
+
+  .ctx-print-sheet--dsl .ctx-print-sheet__meta {
+    margin: 0;
+    padding: 0.12rem 0.16rem;
+    border: 1px solid #94a3b8;
+  }
+
+  .ctx-print-sheet--dsl .ctx-print-sheet__meta > div {
+    grid-template-columns: 4.4rem minmax(0, 1fr);
+    font-size: 6pt;
+  }
+
+  .ctx-print-sheet--dsl .ctx-print-sheet__dsl-tables {
+    min-width: 0;
+    display: grid;
+    gap: 0.18rem;
+    align-content: start;
+  }
+
+  .ctx-print-sheet--dsl .ctx-print-sheet__table {
+    font-size: 5.5pt;
+  }
+
+  .ctx-print-sheet--dsl .ctx-print-sheet__footer {
+    justify-content: stretch;
+    width: 58%;
+    margin-left: auto;
+  }
+}

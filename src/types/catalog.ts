@@ -17,4 +17,6 @@ export type Product = {
   name: string
   price: number
   created_at: string
+  /** When checked for this branch, product appears in transaction modules. */
+  showInCustomerTx?: boolean
 }

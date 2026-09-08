@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { listCatalogTree } from '../lib/catalog'
+import type { UserBranch } from '../lib/branches'
 import { listDiscountsForRoute, listRouteTypes } from '../lib/fth'
 import {
   factoryTransactionTitle,
@@ -20,6 +21,7 @@ import './FactoryTransactionPanel.css'
 
 type FactoryTransactionPanelProps = {
   category: InventoryCategory
+  branch?: UserBranch | null
 }
 
 type LineValues = {
@@ -300,8 +302,9 @@ function mapAdjustmentsFromSaved(
   return next
 }
 
-export function FactoryTransactionPanel({ category }: FactoryTransactionPanelProps) {
+export function FactoryTransactionPanel({ category, branch = 'Davao' }: FactoryTransactionPanelProps) {
   const { user } = useAuth()
+  const catalogBranch = branch ?? 'Davao'
   const [lines, setLines] = useState<FactoryProductLine[]>([])
   const [values, setValues] = useState<Record<string, LineValues>>({})
   const [loading, setLoading] = useState(true)
@@ -370,7 +373,10 @@ export function FactoryTransactionPanel({ category }: FactoryTransactionPanelPro
       setError(null)
       setStatus(null)
 
-      const [catalogResult, routesResult] = await Promise.all([listCatalogTree(), listRouteTypes()])
+      const [catalogResult, routesResult] = await Promise.all([
+        listCatalogTree(catalogBranch, { forTransactions: true }),
+        listRouteTypes(),
+      ])
       if (cancelled) return
 
       if (catalogResult.error) {
@@ -411,7 +417,7 @@ export function FactoryTransactionPanel({ category }: FactoryTransactionPanelPro
     return () => {
       cancelled = true
     }
-  }, [category])
+  }, [category, catalogBranch])
 
   const fgLines = useMemo(() => lines.filter((line) => line.section === 'fg'), [lines])
   const mtsLines = useMemo(() => lines.filter((line) => line.section === 'mts'), [lines])
