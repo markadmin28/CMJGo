@@ -59,7 +59,8 @@ create table if not exists public.full_goods_movements (
   constraint full_goods_location_not_blank check (char_length(trim(location)) > 0)
 );
 
--- Older installs had a global unique load_number; each category keeps its own series now.
+-- Older installs had a global unique load_number; Full Goods and Empties series are
+-- per category/brand tab within the movement month (e.g. PCPPI / Pepsi MTS).
 drop index if exists public.full_goods_load_number_unique;
 alter table public.full_goods_movements drop constraint if exists full_goods_movements_load_number_key;
 

@@ -39,15 +39,6 @@ export const DAVAO_DASHBOARD_CARDS: readonly DashboardCardId[] = [
   'bo',
 ] as const
 
-/** Print/report modules Maragusan users get when they open the Davao workspace. */
-export const MARAGUSAN_DAVAO_WORKSPACE_CARDS: readonly DashboardCardId[] = [
-  'ftPrintables',
-  'skuPrintables',
-  'fullsPrintables',
-  'emptiesPrintables',
-  'inventory',
-] as const
-
 const BRANCH_DASHBOARD_CARDS: Record<UserBranch, readonly DashboardCardId[]> = {
   Davao: DAVAO_DASHBOARD_CARDS,
   Maragusan: [],
@@ -102,10 +93,6 @@ export function getDashboardCardsForBranch(
 ) {
   if (options?.isMasterAdmin) return [...DAVAO_DASHBOARD_CARDS]
   if (!workspaceBranch) return []
-
-  if (options?.loginBranch === 'Maragusan' && workspaceBranch === 'Davao') {
-    return [...MARAGUSAN_DAVAO_WORKSPACE_CARDS]
-  }
 
   return [...(BRANCH_DASHBOARD_CARDS[workspaceBranch] ?? [])]
 }

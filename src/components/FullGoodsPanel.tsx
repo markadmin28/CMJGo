@@ -209,7 +209,11 @@ export function FullGoodsPanel({
     return matched ? [matched] : []
   }, [tree, isEmptiesMode, preferredCompany])
 
-  async function refreshLoadOptions(preferLoad?: string | null, keepPreset = false) {
+  async function refreshLoadOptions(
+    preferLoad?: string | null,
+    keepPreset = false,
+    categoryForSeries?: { id: string; name: string } | null,
+  ) {
     const dailyMode = Boolean(lockedMovementType && preferredCompany)
     if (dailyMode) {
       const presets = getDailyLoadPresets()
@@ -231,11 +235,26 @@ export function FullGoodsPanel({
     }
 
     const seriesMode = isEmptiesMode ? 'empties' : 'fullGoods'
+    const resolvedCategory =
+      categoryForSeries ??
+      (activeCategoryId
+        ? {
+            id: activeCategoryId,
+            name:
+              visibleTree.find((item) => item.id === activeCategoryId)?.name ??
+              tree.find((item) => item.id === activeCategoryId)?.name ??
+              '',
+          }
+        : null)
+    const categoryScope = resolvedCategory
+      ? { categoryId: resolvedCategory.id, categoryName: resolvedCategory.name }
+      : null
     const loadResult = await listLoadNumberOptions(
       movementDate,
       seriesMode,
       emptiesParentId,
       catalogBranch,
+      categoryScope,
     )
     setLoadOptions(loadResult.data)
     setNextSeries(loadResult.nextSeries)
@@ -299,7 +318,12 @@ export function FullGoodsPanel({
       return nextCategoryId
     })
 
-    const loadResult = await refreshLoadOptions(preferLoad, false)
+    const nextCategory = filtered.find((item) => item.id === nextCategoryId) ?? null
+    const loadResult = await refreshLoadOptions(
+      preferLoad,
+      false,
+      nextCategory ? { id: nextCategory.id, name: nextCategory.name } : null,
+    )
     if (loadResult.missingTable) setMissingTable(true)
     if (loadResult.error) setError(loadResult.error)
 
@@ -318,11 +342,20 @@ export function FullGoodsPanel({
   }, [mode, catalogBranch, preferredCompany, lockedMovementType])
 
   const isDailyLayout = Boolean(lockedMovementType && preferredCompany)
+  /** Davao Full Goods / Empties desk (not Nabunturan daily). */
+  const isDavaoDeskLayout = !isDailyLayout
 
   useEffect(() => {
     if (loading || editingId || isDailyLayout) return
     void refreshLoadOptions(null, true)
   }, [movementDate])
+
+  useEffect(() => {
+    if (loading || editingId || isDailyLayout || !activeCategoryId) return
+    void refreshLoadOptions(null, true)
+    // Refresh per-category/brand series when switching tabs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCategoryId])
 
   const activeCategory = visibleTree.find((item) => item.id === activeCategoryId) ?? null
   const categoryLabel = activeCategory?.name.trim() ?? ''
@@ -361,6 +394,15 @@ export function FullGoodsPanel({
         isEmptiesMode ? 'EMPTIES' : 'FULL GOODS'
       } DAILY ${lockedMovementType === 'out' ? 'OUT' : 'IN'}`
     : headerTitle
+  const davaoDeskTitle = isEmptiesMode ? 'EMPTIES IN / OUT' : 'FULL GOODS IN / OUT'
+  const davaoDeskMotifClass = useMemo(() => {
+    if (!isEmptiesMode) return ''
+    const name = normalizeTabName(activeCategory?.name ?? '')
+    if (name.includes('smc')) return 'is-smc'
+    if (name.includes('magnolia') || name.includes('magnoia')) return 'is-magnolia'
+    if (name.includes('pepsi')) return 'is-pepsi'
+    return 'is-pepsi'
+  }, [isEmptiesMode, activeCategory?.name])
 
   function selectCategory(categoryId: string) {
     setActiveCategoryId(categoryId)
@@ -566,6 +608,7 @@ export function FullGoodsPanel({
             isEmptiesMode ? 'empties' : 'fullGoods',
             emptiesParentId,
             catalogBranch,
+            { categoryId: entry.category.id, categoryName: entry.category.name },
           )
           if (seriesResult.error) {
             setError(
@@ -730,8 +773,18 @@ export function FullGoodsPanel({
   }
 
   return (
-    <section className={isDailyLayout ? `fg fg-daily ${dailyCompanyClass}` : 'fg'}>
-      {!isDailyLayout ? (
+    <section
+      className={
+        isDailyLayout
+          ? `fg fg-daily ${dailyCompanyClass}`
+          : isDavaoDeskLayout
+            ? `fg fg-davao${davaoDeskMotifClass ? ` ${davaoDeskMotifClass}` : ''}${
+                isEmptiesMode ? ' fg-davao--empties' : ''
+              }`
+            : 'fg'
+      }
+    >
+      {!isDailyLayout && !isDavaoDeskLayout ? (
         <div className="fg-head">
           <div>
             <h1>{headerTitle}</h1>
@@ -1029,7 +1082,320 @@ export function FullGoodsPanel({
         </form>
       ) : null}
 
-      {!missingTable && !isDailyLayout ? (
+      {!missingTable && isDavaoDeskLayout ? (
+        <form
+          className="fg-davao-shell"
+          onSubmit={(event) => void handleSubmit(event)}
+          aria-label={davaoDeskTitle}
+        >
+          <aside className="fg-davao-side">
+            <header className="fg-davao-side__brand">
+              <h1>{davaoDeskTitle}</h1>
+              <p>CMJ {catalogBranch}</p>
+            </header>
+
+            <div className="fg-davao-meta">
+              {editingId ? (
+                <div className="fg-davao-edit">
+                  <span>Editing saved record</span>
+                  <button
+                    type="button"
+                    className="fg-davao-edit__cancel"
+                    onClick={() => void clearAndRefresh()}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : null}
+
+              <fieldset className="fg-davao-type">
+                <legend>Type</legend>
+                <div className="fg-davao-type__row" role="radiogroup" aria-label="Movement type">
+                  <label
+                    className={
+                      movementType === 'in'
+                        ? 'fg-davao-type__option is-checked'
+                        : 'fg-davao-type__option'
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name={`fg-davao-type-${mode}`}
+                      checked={movementType === 'in'}
+                      onChange={() => setMovementType('in')}
+                    />
+                    <span>{isEmptiesMode ? 'Empties in' : 'In'}</span>
+                  </label>
+                  <label
+                    className={
+                      movementType === 'out'
+                        ? 'fg-davao-type__option is-checked'
+                        : 'fg-davao-type__option'
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name={`fg-davao-type-${mode}`}
+                      checked={movementType === 'out'}
+                      onChange={() => setMovementType('out')}
+                    />
+                    <span>{isEmptiesMode ? 'Empties out' : 'Out'}</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <label className="fg-davao-field">
+                <span>Date</span>
+                <input
+                  type="date"
+                  value={movementDate}
+                  onChange={(event) => setMovementDate(event.target.value)}
+                  required
+                />
+              </label>
+              <label className="fg-davao-field">
+                <span>Truck no.</span>
+                <input
+                  value={truckNumber}
+                  onChange={(event) => setTruckNumber(event.target.value)}
+                  placeholder="ABC-1234"
+                  required
+                />
+              </label>
+              <label className="fg-davao-field">
+                <span>Load no.</span>
+                <select
+                  value={loadNumber}
+                  onChange={(event) => setLoadNumber(event.target.value)}
+                  required
+                  aria-label="Load number"
+                >
+                  {loadOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option === nextSeries ? `${option} (series)` : option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="fg-davao-field">
+                <span>Location</span>
+                <div className="fg-davao-location">
+                  <select
+                    value={locationId ?? ''}
+                    disabled={loading || locations.length === 0}
+                    onChange={(event) => setLocationId(event.target.value || null)}
+                    required={locations.length > 0}
+                    aria-label="Location"
+                  >
+                    {locations.length === 0 ? (
+                      <option value="">No locations yet</option>
+                    ) : (
+                      locations.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <button
+                    type="button"
+                    className="fg-davao-location__add"
+                    aria-label="Add location"
+                    title="Add location"
+                    disabled={loading}
+                    onClick={() => setLocationModal('add')}
+                  >
+                    +
+                  </button>
+                </div>
+                {selectedLocation ? (
+                  <div className="fg-davao-location__tools">
+                    <button
+                      type="button"
+                      className="fg-davao-location__tool"
+                      aria-label="Edit location"
+                      title="Edit location"
+                      onClick={() => setLocationModal('edit')}
+                    >
+                      <PencilIcon />
+                    </button>
+                    <button
+                      type="button"
+                      className="fg-davao-location__tool fg-davao-location__tool--danger"
+                      onClick={() => void handleDeleteLocation()}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ) : null}
+                {locations.length === 0 && !loading ? (
+                  <button
+                    type="button"
+                    className="fg-davao-location__hint"
+                    disabled={loading}
+                    onClick={() => setLocationModal('add')}
+                  >
+                    Add location
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </aside>
+
+          <div className="fg-davao-main">
+            {!loading && !skuMissing && visibleTree.length > 0 ? (
+              <div
+                className="fg-davao-cats"
+                role="tablist"
+                aria-label={isEmptiesMode ? 'Empties brands' : 'SKU categories'}
+              >
+                {visibleTree.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={category.id === activeCategoryId}
+                    className={
+                      category.id === activeCategoryId ? 'fg-davao-cat is-active' : 'fg-davao-cat'
+                    }
+                    onClick={() => selectCategory(category.id)}
+                  >
+                    {category.name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="fg-davao-body">
+              {loading ? <p className="catalog-empty">Loading SKU products…</p> : null}
+
+              {!loading && skuMissing ? (
+                <p className="catalog-empty">
+                  <span className="catalog-empty-title">Stock Keeping Unit not set up</span>
+                  Register products in Stock Keeping Unit first.
+                </p>
+              ) : null}
+
+              {!loading && !skuMissing && visibleTree.length === 0 ? (
+                <p className="catalog-empty">
+                  <span className="catalog-empty-title">
+                    {isEmptiesMode
+                      ? emptiesParentId
+                        ? 'No Empties brands yet'
+                        : 'No Empties category yet'
+                      : 'No SKU products yet'}
+                  </span>
+                  {isEmptiesMode
+                    ? emptiesParentId
+                      ? 'Under Empties, add brands named Pepsi MTS, SMC MTS, and Magnolia MTS.'
+                      : 'Add a category named Empties in Stock Keeping Unit first.'
+                    : 'Add categories and products in Stock Keeping Unit first.'}
+                </p>
+              ) : null}
+
+              {!loading && !skuMissing && activeCategory ? (
+                <div className="category-panel fg-davao-panel" role="tabpanel">
+                  <div className="subcategory-stack">
+                    {activeCategory.subcategories.length === 0 ? (
+                      <p className="group-empty">No subcategories in this SKU category.</p>
+                    ) : null}
+
+                    {activeCategory.subcategories.map((subcategory) => (
+                      <section key={subcategory.id} className="subcategory-group">
+                        <header className="subcategory-group__header">
+                          <h3>{subcategory.name}</h3>
+                        </header>
+
+                        <div className="product-list">
+                          {subcategory.products.length === 0 ? (
+                            <p className="product-empty">No products yet.</p>
+                          ) : null}
+                          {subcategory.products.map((product) => (
+                            <div key={product.id} className="product-chip fth-discount-chip">
+                              <span className="product-name">{product.name}</span>
+                              <input
+                                className={`fth-discount-input${
+                                  quantities[product.id] !== undefined &&
+                                  quantities[product.id] !== null &&
+                                  String(quantities[product.id]).trim() !== ''
+                                    ? ' fg-qty-filled'
+                                    : ''
+                                }`}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={quantities[product.id] ?? ''}
+                                onChange={(event) =>
+                                  setQuantities((prev) => ({
+                                    ...prev,
+                                    [product.id]: event.target.value,
+                                  }))
+                                }
+                                placeholder="Qty"
+                                aria-label={`Quantity for ${product.name}`}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="fg-davao-footer">
+              <button
+                type="button"
+                className="fg-davao-search"
+                disabled={searching || missingTable}
+                onClick={() => void openSearch()}
+              >
+                {searching ? 'Searching…' : 'Search'}
+              </button>
+              <div className="fg-davao-footer__actions">
+                {editingId ? (
+                  <button
+                    type="button"
+                    className="fg-davao-clear"
+                    disabled={submitting || loading}
+                    onClick={() => void handleDelete(editingId)}
+                  >
+                    Delete
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="fg-davao-clear"
+                  disabled={submitting || loading}
+                  onClick={() => void clearAndRefresh()}
+                >
+                  Clear
+                </button>
+                {onClose ? (
+                  <button
+                    type="button"
+                    className="fg-davao-close"
+                    disabled={submitting}
+                    onClick={onClose}
+                  >
+                    Close
+                  </button>
+                ) : null}
+                <button
+                  type="submit"
+                  className="fg-davao-save"
+                  disabled={submitting || loading || skuMissing || locations.length === 0}
+                >
+                  {submitting ? 'Saving…' : editingId ? 'Update record' : 'Save record'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      ) : null}
+
+      {!missingTable && !isDailyLayout && !isDavaoDeskLayout ? (
         <form className="fg-form-shell" onSubmit={(event) => void handleSubmit(event)}>
           {editingId ? (
             <div className="fg-edit-banner">
@@ -1301,7 +1667,7 @@ export function FullGoodsPanel({
         </form>
       ) : null}
 
-      {!loading && !missingTable && !isDailyLayout && locations.length === 0 ? (
+      {!loading && !missingTable && !isDailyLayout && !isDavaoDeskLayout && locations.length === 0 ? (
         <p className="catalog-empty">
           <span className="catalog-empty-title">No locations yet</span>
           Click + next to Location to add one.

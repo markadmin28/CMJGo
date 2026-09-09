@@ -18,7 +18,11 @@ import './PrintablesPanel.css'
 import './FullsPrintablesPanel.css'
 import './FtPrintablesPanel.css'
 
-const CATEGORIES: InventoryCategory[] = ['PCPPI', 'SMC', 'Magnolia']
+const CATEGORIES: { label: string; value: InventoryCategory }[] = [
+  { label: 'PCPPI', value: 'PCPPI' },
+  { label: 'SMC', value: 'SMC' },
+  { label: 'MAGNOLIA', value: 'Magnolia' },
+]
 
 function PrintIcon() {
   return (
@@ -54,10 +58,21 @@ function todayIsoDate() {
   return `${year}-${month}-${day}`
 }
 
+function formatDisplayDate(isoDate: string) {
+  const [year, month, day] = isoDate.split('-').map(Number)
+  if (!year || !month || !day) return isoDate
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 export function FtPrintablesPanel() {
   const [selectedCategory, setSelectedCategory] = useState<InventoryCategory>('PCPPI')
   const [filterDate, setFilterDate] = useState(todayIsoDate())
   const [records, setRecords] = useState<FactoryTransactionRecord[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [dayDetails, setDayDetails] = useState<FactoryTransactionDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -76,12 +91,18 @@ export function FtPrintablesPanel() {
       if (result.error) {
         setRecords([])
         setDayDetails([])
+        setSelectedId(null)
         setError(result.error)
         setLoading(false)
         return
       }
 
       setRecords(result.data)
+      setSelectedId((prev) =>
+        prev && result.data.some((row) => row.id === prev)
+          ? prev
+          : (result.data[0]?.id ?? null),
+      )
 
       if (result.data.length === 0) {
         setDayDetails([])
@@ -162,6 +183,7 @@ export function FtPrintablesPanel() {
   }
 
   async function handlePrintRecord(record: FactoryTransactionRecord) {
+    if (printingId) return
     setPrintingId(record.id)
     setError(null)
     const sheets = await loadPrintData([record.id])
@@ -171,7 +193,7 @@ export function FtPrintablesPanel() {
   }
 
   async function handlePrintAll() {
-    if (records.length === 0) return
+    if (records.length === 0 || printingId) return
     setPrintingId('all')
     setError(null)
     const sheets = await loadPrintData(records.map((record) => record.id))
@@ -180,52 +202,61 @@ export function FtPrintablesPanel() {
     setPrintRecords(sheets)
   }
 
+  const categoryLabel =
+    CATEGORIES.find((entry) => entry.value === selectedCategory)?.label ?? selectedCategory
+
   return (
-    <section className="printables-panel ft-printables fulls-printables" aria-label="FT Printables">
-      <header className="printables-panel__head fulls-printables-head no-print">
-        <h1>FT Printables</h1>
+    <section
+      className="printables-panel fulls-printables ft-printables"
+      aria-label="FT Printables for the day"
+    >
+      <header className="ft-printables__titlebar no-print">
+        <h1>FT Printables for the day</h1>
       </header>
 
-      <div className="fulls-printables-filters-row no-print">
-        <div className="fulls-printables-filters">
-          <fieldset className="fulls-printables-categories">
-            <legend>Category</legend>
-            <div className="fulls-printables-categories__row" role="radiogroup" aria-label="Category">
-              {CATEGORIES.map((category) => {
-                const checked = selectedCategory === category
-                return (
-                  <label
-                    key={category}
-                    className={
-                      checked ? 'fulls-printables-check is-checked' : 'fulls-printables-check'
-                    }
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => setSelectedCategory(category)}
-                    />
-                    <span>{category}</span>
-                  </label>
-                )
-              })}
-            </div>
-          </fieldset>
+      <div className="ft-printables__toolbar no-print">
+        <fieldset className="ft-printables__companies">
+          <legend className="visually-hidden">Category</legend>
+          <div
+            className="ft-printables__companies-row"
+            role="radiogroup"
+            aria-label="Category"
+          >
+            {CATEGORIES.map((entry) => {
+              const checked = selectedCategory === entry.value
+              return (
+                <label
+                  key={entry.value}
+                  className={
+                    checked ? 'ft-printables__radio is-checked' : 'ft-printables__radio'
+                  }
+                >
+                  <input
+                    type="radio"
+                    name="ft-printables-category"
+                    checked={checked}
+                    onChange={() => setSelectedCategory(entry.value)}
+                  />
+                  <span>{entry.label}</span>
+                </label>
+              )
+            })}
+          </div>
+        </fieldset>
 
-          <label className="fulls-printables-date">
-            <span>Date</span>
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(event) => setFilterDate(event.target.value)}
-            />
-          </label>
-        </div>
+        <label className="ft-printables__date">
+          <span className="visually-hidden">Date</span>
+          <input
+            type="date"
+            value={filterDate}
+            onChange={(event) => setFilterDate(event.target.value)}
+          />
+        </label>
 
         <button
           type="button"
           className="fulls-printables-print-btn fulls-printables-print-all"
-          disabled={loading || records.length === 0 || printingId === 'all'}
+          disabled={loading || records.length === 0 || Boolean(printingId)}
           onClick={() => void handlePrintAll()}
         >
           <PrintIcon />
@@ -234,53 +265,75 @@ export function FtPrintablesPanel() {
       </div>
 
       {error ? <p className="catalog-error no-print">{error}</p> : null}
-      {loading ? <p className="catalog-empty no-print">Loading records…</p> : null}
 
-      {!loading && records.length === 0 ? (
-        <div className="printables-panel__empty no-print">
-          <p className="printables-panel__empty-title">No records found</p>
-          <p>
-            No {selectedCategory} Factory Transaction records for {filterDate}.
-          </p>
-        </div>
-      ) : null}
+      <div className="ft-printables__board no-print">
+        {loading ? <p className="catalog-empty">Loading factory transactions…</p> : null}
 
-      {!loading && records.length > 0 ? (
-        <div className="fg-table-wrap fulls-printables-table no-print">
-          <table className="fg-table">
-            <thead>
-              <tr>
-                <th>Plate no.</th>
-                <th>Load no.</th>
-                <th>Driver</th>
-                <th>Helper</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((record) => (
-                <tr key={record.id}>
-                  <td>{record.plate_no || '—'}</td>
-                  <td>{record.load_no || '—'}</td>
-                  <td>{record.driver || '—'}</td>
-                  <td>{record.helper || '—'}</td>
-                  <td className="fg-row-actions">
-                    <button
-                      type="button"
-                      className="fulls-printables-print-btn"
-                      disabled={printingId === record.id}
-                      onClick={() => void handlePrintRecord(record)}
-                    >
-                      <PrintIcon />
-                      {printingId === record.id ? 'Preparing…' : 'Print'}
-                    </button>
-                  </td>
+        {!loading && records.length === 0 ? (
+          <div className="ft-printables__empty">
+            <p className="ft-printables__empty-title">No Data</p>
+            <p>
+              No {categoryLabel} Factory Transaction records for {formatDisplayDate(filterDate)}.
+            </p>
+          </div>
+        ) : null}
+
+        {!loading && records.length > 0 ? (
+          <div className="ft-printables__table-wrap">
+            <table className="ft-printables__table">
+              <thead>
+                <tr>
+                  <th>Plate no.</th>
+                  <th>Load no.</th>
+                  <th>Driver</th>
+                  <th>Helper</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+              </thead>
+              <tbody>
+                {records.map((record) => {
+                  const busy = printingId === record.id || printingId === 'all'
+                  const selected = record.id === selectedId
+                  return (
+                    <tr
+                      key={record.id}
+                      className={selected ? 'is-selected' : undefined}
+                      tabIndex={0}
+                      onClick={() => setSelectedId(record.id)}
+                      onDoubleClick={() => void handlePrintRecord(record)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setSelectedId(record.id)
+                        }
+                      }}
+                    >
+                      <td>{record.plate_no || '—'}</td>
+                      <td>{record.load_no || '—'}</td>
+                      <td>{record.driver || '—'}</td>
+                      <td>{record.helper || '—'}</td>
+                      <td className="is-actions">
+                        <button
+                          type="button"
+                          className="fulls-printables-print-btn"
+                          disabled={busy}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void handlePrintRecord(record)
+                          }}
+                        >
+                          <PrintIcon />
+                          {printingId === record.id ? '…' : 'Print'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </div>
 
       {printRecords.length > 0 ? (
         <div className="ft-print-batch print-only" aria-hidden="true">

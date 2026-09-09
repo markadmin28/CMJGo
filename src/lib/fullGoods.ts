@@ -122,6 +122,11 @@ export async function deleteLocation(id: string) {
 
 export type LoadSeriesMode = 'fullGoods' | 'empties'
 
+export type LoadSeriesCategoryScope = {
+  categoryId?: string | null
+  categoryName?: string | null
+}
+
 function monthRange(isoDate: string) {
   const [year, month] = isoDate.split('-').map(Number)
   if (!year || !month) {
@@ -140,21 +145,57 @@ function normalizeLoadScopeName(name: string | null | undefined) {
 }
 
 function matchesLoadSeriesScope(
-  row: { category_id: string | null; category_name: string | null },
+  row: {
+    category_id: string | null
+    category_name: string | null
+    brand_id?: string | null
+    brand_name?: string | null
+  },
   mode: LoadSeriesMode,
   emptiesParentId?: string | null,
+  categoryScope?: LoadSeriesCategoryScope | null,
 ) {
   if (emptiesParentId) {
-    return mode === 'empties'
-      ? row.category_id === emptiesParentId
-      : row.category_id !== emptiesParentId
+    const inEmptiesParent =
+      mode === 'empties'
+        ? row.category_id === emptiesParentId
+        : row.category_id !== emptiesParentId
+    if (!inEmptiesParent) return false
+  } else {
+    const categoryName = normalizeLoadScopeName(row.category_name)
+    if (mode === 'empties') {
+      if (!(categoryName.includes('mts') || categoryName === 'empties')) return false
+    } else if (categoryName === 'empties' || categoryName.includes('mts')) {
+      return false
+    }
   }
 
-  const categoryName = normalizeLoadScopeName(row.category_name)
+  // Optional per-tab series: Full Goods (PCPPI/SMC/Magnolia) or Empties brands (Pepsi MTS/…).
+  if (!categoryScope) return true
+
+  const scopeId = categoryScope.categoryId?.trim() || null
+  const scopeName = normalizeLoadScopeName(categoryScope.categoryName)
+
   if (mode === 'empties') {
-    return categoryName.includes('mts') || categoryName === 'empties'
+    // Empties movements store parent category_id; brand lives on brand_* / category_name.
+    if (scopeId) {
+      return row.brand_id === scopeId
+    }
+    if (scopeName) {
+      const rowBrand = normalizeLoadScopeName(row.brand_name)
+      const rowCategory = normalizeLoadScopeName(row.category_name)
+      return rowBrand === scopeName || rowCategory === scopeName
+    }
+    return true
   }
-  return categoryName !== 'empties' && !categoryName.includes('mts')
+
+  if (scopeId) {
+    return row.category_id === scopeId
+  }
+  if (scopeName) {
+    return normalizeLoadScopeName(row.category_name) === scopeName
+  }
+  return true
 }
 
 /** Next numeric series load number for the movement month (ignores BO / OTHERS / non-numeric). */
@@ -163,12 +204,13 @@ export async function getNextSeriesLoadNumber(
   mode: LoadSeriesMode,
   emptiesParentId?: string | null,
   branch?: UserBranch | null,
+  categoryScope?: LoadSeriesCategoryScope | null,
 ) {
   const activeBranch = resolveBranch(branch)
   const { start, end } = monthRange(movementDate)
   const { data, error } = await supabase
     .from('full_goods_movements')
-    .select('load_number, category_id, category_name')
+    .select('load_number, category_id, category_name, brand_id, brand_name')
     .eq('branch', activeBranch)
     .gte('movement_date', start)
     .lte('movement_date', end)
@@ -183,7 +225,7 @@ export async function getNextSeriesLoadNumber(
 
   let max = 0
   for (const row of data ?? []) {
-    if (!matchesLoadSeriesScope(row, mode, emptiesParentId)) continue
+    if (!matchesLoadSeriesScope(row, mode, emptiesParentId, categoryScope)) continue
     const raw = String(row.load_number ?? '').trim()
     if (!/^\d+$/.test(raw)) continue
     const value = Number(raw)
@@ -203,8 +245,15 @@ export async function listLoadNumberOptions(
   mode: LoadSeriesMode,
   emptiesParentId?: string | null,
   branch?: UserBranch | null,
+  categoryScope?: LoadSeriesCategoryScope | null,
 ) {
-  const next = await getNextSeriesLoadNumber(movementDate, mode, emptiesParentId, branch)
+  const next = await getNextSeriesLoadNumber(
+    movementDate,
+    mode,
+    emptiesParentId,
+    branch,
+    categoryScope,
+  )
   if (next.error) {
     return {
       data: [...PRESET_LOAD_OPTIONS] as string[],

@@ -2,6 +2,7 @@
   display: grid;
   gap: 0;
   width: min(100%, 980px);
+  margin: 0 auto;
   border: 1px solid rgba(148, 163, 184, 0.95);
   border-radius: 12px;
   overflow: hidden;

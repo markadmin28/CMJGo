@@ -1,0 +1,2 @@
+-- Deprecated: use user_chat_schema.sql for 1:1 direct messages instead.
+-- Kept only so older notes still resolve; safe to ignore.

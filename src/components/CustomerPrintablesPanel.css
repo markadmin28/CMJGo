@@ -1,6 +1,7 @@
 .customer-printables {
   gap: 0.55rem;
   width: min(100%, 980px);
+  margin: 0 auto;
 }
 
 .customer-printables__titlebar {

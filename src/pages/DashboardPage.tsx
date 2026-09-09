@@ -10,7 +10,6 @@ import {
   type PrintableOption,
   type PrintablesChooserKind,
 } from '../components/PrintablesChooserModal'
-import { InventoryChooserModal } from '../components/InventoryChooserModal'
 import { InventoryPreviewPanel } from '../components/InventoryPreviewPanel'
 import { CollectionPanel } from '../components/CollectionPanel'
 import { ActualInventoryPanel } from '../components/ActualInventoryPanel'
@@ -53,6 +52,7 @@ import {
   type CustomerTransactionCompany,
 } from '../lib/customerTransaction'
 import { SkuOptionsPopover, type SkuOption } from '../components/SkuOptionsPopover'
+import { DashboardChatPanel } from '../components/DashboardChatPanel'
 import { useAuth } from '../contexts/AuthContext'
 import {
   canAccessDashboardCard,
@@ -128,7 +128,7 @@ export function DashboardPage() {
   const { user, signOut, isMasterAdmin } = useAuth()
   const [addUserOpen, setAddUserOpen] = useState(false)
   const [printablesOpen, setPrintablesOpen] = useState(false)
-  const [inventoryOpen, setInventoryOpen] = useState(false)
+  const [printablesMenuPos, setPrintablesMenuPos] = useState({ top: 0, left: 0 })
   const [inventoryCategory, setInventoryCategory] = useState<InventoryCategory>('PCPPI')
   const [factoryOpen, setFactoryOpen] = useState(false)
   const [factoryCategory, setFactoryCategory] = useState<InventoryCategory>('PCPPI')
@@ -187,10 +187,26 @@ export function DashboardPage() {
     setActualInventoryMenuOpen(false)
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setPrintablesOpen(false)
     setActiveModule('home')
     if (needsWorkspacePicker) setWorkspaceBranch(null)
   }
-  function openPrintablesChooser(kind: PrintablesChooserKind) {
+  function openPrintablesChooser(
+    kind: PrintablesChooserKind,
+    event: MouseEvent<HTMLButtonElement>,
+  ) {
+    setSkuMenuOpen(false)
+    setCustomerTxMenuOpen(false)
+    setRouteTxMenuOpen(false)
+    setDailyGoodsMenuKind(null)
+    setActualInventoryMenuOpen(false)
+    setInventoryMenuOpen(false)
+    setCollectionMenuOpen(false)
+    const rect = event.currentTarget.getBoundingClientRect()
+    setPrintablesMenuPos({
+      top: rect.top,
+      left: rect.right + 10,
+    })
     setPrintablesKind(kind)
     setPrintablesOpen(true)
   }
@@ -198,12 +214,6 @@ export function DashboardPage() {
   function handlePrintableSelect(option: PrintableOption) {
     setPrintablesOpen(false)
     setActiveModule(option)
-  }
-
-  function handleInventorySelect(category: InventoryCategory) {
-    setInventoryOpen(false)
-    setInventoryCategory(category)
-    setActiveModule('inventory')
   }
 
   function handleFactorySelect(category: InventoryCategory) {
@@ -219,6 +229,7 @@ export function DashboardPage() {
     setActualInventoryMenuOpen(false)
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setSkuMenuPos({
       top: rect.top,
@@ -234,6 +245,7 @@ export function DashboardPage() {
     setActualInventoryMenuOpen(false)
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setCustomerTxMenuPos({
       top: rect.top,
@@ -249,6 +261,7 @@ export function DashboardPage() {
     setActualInventoryMenuOpen(false)
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setRouteTxMenuPos({
       top: rect.top,
@@ -267,6 +280,7 @@ export function DashboardPage() {
     setActualInventoryMenuOpen(false)
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setDailyGoodsMenuPos({
       top: rect.top,
@@ -282,6 +296,7 @@ export function DashboardPage() {
     setDailyGoodsMenuKind(null)
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setActualInventoryMenuPos({
       top: rect.top,
@@ -297,6 +312,7 @@ export function DashboardPage() {
     setDailyGoodsMenuKind(null)
     setActualInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setInventoryMenuPos({
       top: rect.top,
@@ -312,6 +328,7 @@ export function DashboardPage() {
     setDailyGoodsMenuKind(null)
     setActualInventoryMenuOpen(false)
     setInventoryMenuOpen(false)
+    setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setCollectionMenuPos({
       top: rect.top,
@@ -490,14 +507,14 @@ export function DashboardPage() {
       className: 'dash-module-btn--printables',
       label: 'Fulls In/Out Printables',
       icon: fullsPrintablesModuleIcon,
-      onClick: () => openPrintablesChooser('fulls'),
+      onClick: () => undefined,
     },
     {
       id: 'emptiesPrintables',
       className: 'dash-module-btn--emptiesPrintables',
       label: 'Empties In/Out Printables',
       icon: emptiesPrintablesModuleIcon,
-      onClick: () => openPrintablesChooser('empties'),
+      onClick: () => undefined,
     },
     {
       id: 'actualInventory',
@@ -535,10 +552,9 @@ export function DashboardPage() {
     'empties',
     'bo',
   ])
-  const isCompactModules = needsWorkspacePicker && workspaceBranch === 'Davao'
   const skuStackCards = visibleHomeCards.filter((card) => skuStackIds.has(card.id))
   const otherHomeCards = visibleHomeCards.filter((card) => !skuStackIds.has(card.id))
-  const useSkuStack = !isCompactModules && skuStackCards.some((card) => card.id === 'sku')
+  const useSkuStack = skuStackCards.some((card) => card.id === 'sku')
 
   function renderHomeCard(card: HomeCard) {
     return (
@@ -584,15 +600,19 @@ export function DashboardPage() {
             return
           }
           if (card.id === 'inventory') {
-            if (effectiveBranch === 'Nabunturan') {
-              openInventoryMenu(event)
-              return
-            }
-            setInventoryOpen(true)
+            openInventoryMenu(event)
             return
           }
           if (card.id === 'collection') {
             openCollectionMenu(event)
+            return
+          }
+          if (card.id === 'fullsPrintables') {
+            openPrintablesChooser('fulls', event)
+            return
+          }
+          if (card.id === 'emptiesPrintables') {
+            openPrintablesChooser('empties', event)
             return
           }
           card.onClick()
@@ -625,7 +645,9 @@ export function DashboardPage() {
           </button>
           <div className="dash-header-actions">
             <div className="dash-user-chip" title={user?.email ?? undefined}>
-              <span className="dash-user-avatar">{(fullName ?? user?.email ?? 'U').slice(0, 1)}</span>
+              <span className="dash-user-avatar">
+                {(fullName ?? user?.email ?? 'U').slice(0, 1)}
+              </span>
               <span className="dash-user-meta">
                 <span className="dash-user-name">{fullName ?? 'User'}</span>
                 {isMasterAdmin ? (
@@ -679,11 +701,9 @@ export function DashboardPage() {
           visibleHomeCards.length > 0 ? (
             <section
               className={
-                isCompactModules
-                  ? 'dash-modules dash-modules--compact'
-                  : useSkuStack
-                    ? 'dash-modules dash-modules--with-sku-stack'
-                    : 'dash-modules'
+                useSkuStack
+                  ? 'dash-modules dash-modules--with-sku-stack'
+                  : 'dash-modules'
               }
               aria-label="Modules"
             >
@@ -778,7 +798,7 @@ export function DashboardPage() {
         ) : null}
         {activeModule === 'fth' && canAccess('fth') ? <FthDiscountPanel /> : null}
         {activeModule === 'fullGoods' && canAccess('fullGoods') ? (
-          <FullGoodsPanel mode="fullGoods" branch={effectiveBranch} />
+          <FullGoodsPanel mode="fullGoods" branch={effectiveBranch} onClose={goHome} />
         ) : null}
         {activeModule === 'fullGoodsDailyIn' && canAccess('fullGoodsDailyIn') ? (
           <FullGoodsPanel
@@ -790,7 +810,7 @@ export function DashboardPage() {
           />
         ) : null}
         {activeModule === 'empties' && canAccess('empties') ? (
-          <FullGoodsPanel mode="empties" branch={effectiveBranch} />
+          <FullGoodsPanel mode="empties" branch={effectiveBranch} onClose={goHome} />
         ) : null}
         {activeModule === 'emptiesDailyIn' && canAccess('emptiesDailyIn') ? (
           <FullGoodsPanel
@@ -826,6 +846,13 @@ export function DashboardPage() {
           <BLiquidationPrintablesPanel mode="empties" branch={effectiveBranch} />
         ) : null}
       </main>
+
+      {user?.id ? (
+        <DashboardChatPanel
+          currentUserId={user.id}
+          currentUserName={fullName ?? user.email ?? 'User'}
+        />
+      ) : null}
 
       <SkuOptionsPopover
         open={skuMenuOpen}
@@ -889,14 +916,10 @@ export function DashboardPage() {
       <PrintablesChooserModal
         open={printablesOpen}
         kind={printablesKind}
+        top={printablesMenuPos.top}
+        left={printablesMenuPos.left}
         onClose={() => setPrintablesOpen(false)}
         onSelect={handlePrintableSelect}
-      />
-
-      <InventoryChooserModal
-        open={inventoryOpen}
-        onClose={() => setInventoryOpen(false)}
-        onSelect={handleInventorySelect}
       />
 
       <FactoryTransactionChooserModal
@@ -909,14 +932,12 @@ export function DashboardPage() {
         <AddUserModal open={addUserOpen} onClose={() => setAddUserOpen(false)} />
       ) : null}
 
-      {showHomeChrome ? (
-        <footer className="dash-footer">
-          <p>
-            CMJgo Web Application · Powered by CMJ-MIS · Developed by Mark Morales · All rights
-            reserved 2026
-          </p>
-        </footer>
-      ) : null}
+      <footer className="dash-footer no-print">
+        <p>
+          CMJgo Web Application · Powered by CMJ-MIS · Developed by Mark Morales · All rights
+          reserved 2026
+        </p>
+      </footer>
     </div>
   )
 }

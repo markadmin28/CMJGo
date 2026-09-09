@@ -603,6 +603,7 @@ export function PrintablesRecordsPanel({
     Array<{ record: FullGoodsMovement; numberFieldLabel: 'Load no.' | 'Sales no.' }>
   >([])
   const [printingRowId, setPrintingRowId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const useSkuLayout = printLayout === 'sku'
   const useMovementFilter = useSkuLayout && filterByMovementType
   const showMovementColumn = !useMovementFilter
@@ -794,9 +795,13 @@ export function PrintablesRecordsPanel({
     mode,
   ])
 
-  const panelTitle =
+  const baseTitle =
     title ?? (mode === 'empties' ? 'Empties In/Out Printables' : 'Fulls In/Out Printables')
+  const panelTitle = baseTitle.endsWith(' for the day')
+    ? baseTitle
+    : `${baseTitle} for the day`
   const goodsLabel = mode === 'empties' ? 'Empties' : 'Full Goods'
+  const categoryLabel = selectedCategory.toUpperCase()
   const secondColumnLabel = mergeCustomerTx ? 'Load / Sales no.' : 'Load no.'
   const thirdColumnLabel = mergeCustomerTx ? 'Location / Customer' : 'Location'
 
@@ -873,84 +878,83 @@ export function PrintablesRecordsPanel({
 
   return (
     <>
-      <section className="printables-panel fulls-printables" aria-label={panelTitle}>
-        <header className="printables-panel__head fulls-printables-head no-print">
+      <section
+        className="printables-panel fulls-printables day-printables"
+        aria-label={panelTitle}
+      >
+        <header className="day-printables__titlebar no-print">
           <h1>{panelTitle}</h1>
         </header>
 
-        <div className="fulls-printables-filters-row no-print">
-          <div className="fulls-printables-filters">
-            <fieldset className="fulls-printables-categories">
-              <legend>Category</legend>
+        <div className="day-printables__toolbar no-print">
+          <fieldset className="day-printables__companies">
+            <legend className="visually-hidden">Category</legend>
+            <div
+              className="day-printables__companies-row"
+              role="radiogroup"
+              aria-label="Category"
+            >
+              {categories.map((category) => {
+                const checked = selectedCategory === category
+                return (
+                  <label
+                    key={category}
+                    className={
+                      checked ? 'day-printables__radio is-checked' : 'day-printables__radio'
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name={`day-printables-category-${mode}-${printLayout}`}
+                      checked={checked}
+                      onChange={() => setSelectedCategory(category)}
+                    />
+                    <span>{category.toUpperCase()}</span>
+                  </label>
+                )
+              })}
+            </div>
+          </fieldset>
+
+          {useMovementFilter ? (
+            <fieldset className="day-printables__companies">
+              <legend className="visually-hidden">In/Out</legend>
               <div
-                className="fulls-printables-categories__row"
+                className="day-printables__companies-row"
                 role="radiogroup"
-                aria-label="Category"
+                aria-label="In or Out"
               >
-                {categories.map((category) => {
-                  const checked = selectedCategory === category
+                {MOVEMENT_TYPE_OPTIONS.map((option) => {
+                  const checked = selectedMovementType === option.value
                   return (
                     <label
-                      key={category}
+                      key={option.value}
                       className={
-                        checked
-                          ? 'fulls-printables-check is-checked'
-                          : 'fulls-printables-check'
+                        checked ? 'day-printables__radio is-checked' : 'day-printables__radio'
                       }
                     >
                       <input
-                        type="checkbox"
+                        type="radio"
+                        name={`day-printables-movement-${mode}-${printLayout}`}
                         checked={checked}
-                        onChange={() => setSelectedCategory(category)}
+                        onChange={() => setSelectedMovementType(option.value)}
                       />
-                      <span>{category}</span>
+                      <span>{option.label.toUpperCase()}</span>
                     </label>
                   )
                 })}
               </div>
             </fieldset>
+          ) : null}
 
-            {useMovementFilter ? (
-              <fieldset className="fulls-printables-categories">
-                <legend>In/Out</legend>
-                <div
-                  className="fulls-printables-categories__row"
-                  role="radiogroup"
-                  aria-label="In or Out"
-                >
-                  {MOVEMENT_TYPE_OPTIONS.map((option) => {
-                    const checked = selectedMovementType === option.value
-                    return (
-                      <label
-                        key={option.value}
-                        className={
-                          checked
-                            ? 'fulls-printables-check is-checked'
-                            : 'fulls-printables-check'
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => setSelectedMovementType(option.value)}
-                        />
-                        <span>{option.label}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-              </fieldset>
-            ) : null}
-
-            <label className="fulls-printables-date">
-              <span>Date</span>
-              <input
-                type="date"
-                value={filterDate}
-                onChange={(event) => setFilterDate(event.target.value)}
-              />
-            </label>
-          </div>
+          <label className="day-printables__date">
+            <span className="visually-hidden">Date</span>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(event) => setFilterDate(event.target.value)}
+            />
+          </label>
 
           <button
             type="button"
@@ -959,65 +963,93 @@ export function PrintablesRecordsPanel({
             onClick={() => void printAllRows()}
           >
             <PrintIcon />
-            Print all
+            {printingRowId === 'batch' ? 'Preparing…' : 'Print all'}
           </button>
         </div>
 
         {error ? <p className="catalog-error no-print">{error}</p> : null}
 
-        {loading ? <p className="catalog-empty no-print">Loading records…</p> : null}
+        <div className="day-printables__board no-print">
+          {loading ? <p className="catalog-empty">Loading records…</p> : null}
 
-        {!loading && mergedRows.length === 0 ? (
-          <div className="printables-panel__empty no-print">
-            <p className="printables-panel__empty-title">No records found</p>
-            <p>
-              No {selectedCategory} {goodsLabel}
-              {mergeCustomerTx ? ', customer, or route transaction' : ''}{' '}
-              {useMovementFilter ? (selectedMovementType === 'in' ? 'In' : 'Out') : ''} records for{' '}
-              {filterDate}.
-            </p>
-          </div>
-        ) : null}
+          {!loading && mergedRows.length === 0 ? (
+            <div className="day-printables__empty">
+              <p className="day-printables__empty-title">No Data</p>
+              <p>
+                No {categoryLabel} {goodsLabel}
+                {mergeCustomerTx ? ', customer, or route transaction' : ''}{' '}
+                {useMovementFilter
+                  ? selectedMovementType === 'in'
+                    ? 'In'
+                    : 'Out'
+                  : ''}{' '}
+                records for {formatDisplayDate(filterDate)}.
+              </p>
+            </div>
+          ) : null}
 
-        {!loading && mergedRows.length > 0 ? (
-          <div className="fg-table-wrap fulls-printables-table no-print">
-            <table className="fg-table">
-              <thead>
-                <tr>
-                  <th>Plate no.</th>
-                  <th>{secondColumnLabel}</th>
-                  <th>{thirdColumnLabel}</th>
-                  {showMovementColumn ? <th>In/Out</th> : null}
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {mergedRows.map((row) => {
-                  const busy = printingRowId === row.id || printingRowId === 'batch'
-                  return (
-                    <tr key={row.id}>
-                      <td>{row.plate}</td>
-                      <td>{row.second}</td>
-                      <td>{row.third}</td>
-                      {showMovementColumn ? <td>{row.movementLabel}</td> : null}
-                      <td className="fg-row-actions">
-                        <button
-                          type="button"
-                          className="fulls-printables-print-btn"
-                          disabled={busy}
-                          onClick={() => void printOneRow(row)}
-                        >
-                          <PrintIcon />
-                          {busy ? '…' : 'Print'}
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
+          {!loading && mergedRows.length > 0 ? (
+            <div className="day-printables__table-wrap">
+              <table
+                className={
+                  showMovementColumn
+                    ? 'day-printables__table day-printables__table--with-movement'
+                    : 'day-printables__table'
+                }
+              >
+                <thead>
+                  <tr>
+                    <th>Plate no.</th>
+                    <th>{secondColumnLabel}</th>
+                    <th>{thirdColumnLabel}</th>
+                    {showMovementColumn ? <th>In/Out</th> : null}
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {mergedRows.map((row) => {
+                    const busy = printingRowId === row.id || printingRowId === 'batch'
+                    const selected = row.id === selectedId
+                    return (
+                      <tr
+                        key={row.id}
+                        className={selected ? 'is-selected' : undefined}
+                        tabIndex={0}
+                        onClick={() => setSelectedId(row.id)}
+                        onDoubleClick={() => void printOneRow(row)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setSelectedId(row.id)
+                          }
+                        }}
+                      >
+                        <td>{row.plate || '—'}</td>
+                        <td>{row.second || '—'}</td>
+                        <td>{row.third || '—'}</td>
+                        {showMovementColumn ? <td>{row.movementLabel}</td> : null}
+                        <td className="is-actions">
+                          <button
+                            type="button"
+                            className="fulls-printables-print-btn"
+                            disabled={busy}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void printOneRow(row)
+                            }}
+                          >
+                            <PrintIcon />
+                            {printingRowId === row.id ? '…' : 'Print'}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </div>
 
         {printJobs.length > 0 ? (
           <div className="fulls-print-batch print-only" aria-hidden="true">
