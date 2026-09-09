@@ -1,90 +1,292 @@
-.b-liquidation-filters {
-  gap: 0.55rem 0.75rem;
+/* Screen UI — Full / Empties B-Liquidation panel */
+.b-liquidation-panel {
+  --bliq-accent: #1e5a8a;
+  --bliq-line: rgba(148, 163, 184, 0.55);
+  gap: 0.5rem;
+  width: min(100%, 420px);
+  margin: 0 auto;
+  padding: 0.15rem 0.15rem 0.5rem;
 }
 
-.b-liquidation-filters--empties-inline {
-  align-items: stretch;
+.b-liquidation-panel.is-empties {
+  --bliq-accent: #c2410c;
 }
 
-.b-liquidation-empties-row {
+.b-liquidation-panel__titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.15rem;
+  margin: 0;
+  padding: 0.45rem 0.75rem;
+  border-radius: 10px 10px 0 0;
+  background: linear-gradient(180deg, #1e5a8a 0%, #164a73 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+}
+
+.b-liquidation-panel.is-empties .b-liquidation-panel__titlebar {
+  background: linear-gradient(180deg, #c2410c 0%, #9a3412 100%);
+}
+
+.b-liquidation-panel__title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f8fafc;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.b-liquidation-panel__filters-row {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-  width: 100%;
-  min-width: 0;
+  align-items: stretch;
+  gap: 0.55rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--bliq-line);
+  border-top: 0;
+  border-radius: 0 0 12px 12px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef3f7 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
 }
 
-.b-liquidation-empties-row__legend {
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: var(--font-weight-medium);
-  color: var(--fg-muted);
+.b-liquidation-panel.is-empties .b-liquidation-panel__filters-row {
+  border-color: rgba(253, 186, 116, 0.7);
+  border-top: 0;
+  background: linear-gradient(180deg, #fffaf5 0%, #fff1e6 100%);
 }
 
-.b-liquidation-empties-row__controls {
+.b-liquidation-panel__categories {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem 0.55rem;
+  flex-wrap: nowrap;
   width: 100%;
+  gap: 0.28rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.b-liquidation-panel__categories .fulls-printables-check {
+  flex: 1 1 0;
+  justify-content: center;
   min-width: 0;
 }
 
-.b-liquidation-empties-row__checks {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.b-liquidation-empties-row .fulls-printables-date {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0;
-}
-
-.b-liquidation-empties-row .fulls-printables-date span {
-  margin: 0;
-  font-size: 10px;
-  font-weight: var(--font-weight-medium);
-  color: var(--fg-muted);
-  white-space: nowrap;
-}
-
-.b-liquidation-empties-row .fulls-printables-date input {
-  width: auto;
-  min-width: 7.25rem;
-  max-width: 7.25rem;
-  padding: 0 0.35rem;
+.b-liquidation-panel__date-print {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 0.4rem;
 }
 
 .b-liquidation-dates {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: flex-end;
-  gap: 0.55rem 0.75rem;
+  width: 100%;
+  gap: 0.45rem;
+}
+
+.b-liquidation-dates .fulls-printables-date {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.b-liquidation-panel .fulls-printables-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  height: 28px;
+  padding: 0 0.55rem 0 0.4rem;
+  border: 1px solid rgba(148, 163, 184, 0.85);
+  border-radius: 999px;
+  background: #fff;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.b-liquidation-panel .fulls-printables-check input {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: var(--bliq-accent);
+}
+
+.b-liquidation-panel .fulls-printables-check span {
+  font-size: 0.72rem;
+  font-weight: var(--font-weight-semibold);
+  color: #334155;
+  line-height: 1;
+}
+
+.b-liquidation-panel .fulls-printables-check.is-checked {
+  border-color: transparent;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bliq-accent) 88%, #fff) 0%,
+    var(--bliq-accent) 100%
+  );
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--bliq-accent) 24%, transparent);
+}
+
+.b-liquidation-panel .fulls-printables-check.is-checked span {
+  color: #fff;
+}
+
+.b-liquidation-panel .fulls-printables-date {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+}
+
+.b-liquidation-panel .fulls-printables-date span {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  line-height: 1;
+}
+
+.b-liquidation-panel .fulls-printables-date input {
+  width: 100%;
+  max-width: none;
+  height: 30px;
+  padding: 0 0.45rem;
+  border: 1px solid rgba(148, 163, 184, 0.85);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.78rem;
+  color: #0f172a;
+  box-sizing: border-box;
+}
+
+.b-liquidation-panel .fulls-printables-date input:focus {
+  outline: 2px solid color-mix(in srgb, var(--bliq-accent) 30%, transparent);
+  outline-offset: 1px;
+  border-color: var(--bliq-accent);
+}
+
+.b-liquidation-panel__print.fulls-printables-print-btn {
+  align-self: stretch;
+  width: 100%;
+  flex-shrink: 0;
+  height: 32px;
+  margin: 0;
+  padding: 0 0.8rem;
+  border: 0;
+  border-radius: 9px;
+  gap: 0.3rem;
+  justify-content: center;
+  font-size: 0.72rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bliq-accent) 82%, #fff) 0%,
+    var(--bliq-accent) 100%
+  );
+  color: #fff;
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--bliq-accent) 24%, transparent);
+}
+
+.b-liquidation-panel__print.fulls-printables-print-btn:not(:disabled):hover {
+  filter: brightness(1.05);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bliq-accent) 82%, #fff) 0%,
+    var(--bliq-accent) 100%
+  );
+  border-color: transparent;
+  transform: none;
+}
+
+.b-liquidation-panel .catalog-error {
+  margin: 0;
+  padding: 0 0.15rem;
+  font-size: 0.78rem;
+}
+
+.b-liquidation-print-pack {
+  display: none;
 }
 
 @media print {
+  .b-liquidation-print-pack {
+    display: block !important;
+    color: #111;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .b-liquidation-print-pack .fulls-print-sheet,
+  .b-liquidation-print-pack .b-liquidation-print-sheet {
+    display: block;
+    break-inside: auto;
+    page-break-inside: auto;
+    break-before: auto;
+    page-break-before: auto;
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .b-liquidation-print-sheet--companion {
+    margin-top: 0.4rem;
+    padding-top: 0.3rem;
+    border-top: 1.5px solid #111;
+  }
+
+  .b-liquidation-print-sheet__header--compact {
+    margin-bottom: 0.25rem !important;
+    padding-bottom: 0.2rem !important;
+  }
+
+  .b-liquidation-print-sheet__header--compact .fulls-print-sheet__title {
+    font-size: 10pt !important;
+    margin: 0 !important;
+  }
+
+  .b-liquidation-print-sheet--combined .fulls-print-sheet__header {
+    margin-bottom: 0.3rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .b-liquidation-print-sheet--combined .fulls-print-sheet__company {
+    font-size: 9pt;
+  }
+
+  .b-liquidation-print-sheet--combined .fulls-print-sheet__branch {
+    font-size: 8pt;
+  }
+
+  .b-liquidation-print-sheet--combined .fulls-print-sheet__title {
+    font-size: 11pt;
+  }
+
   .b-liquidation-print-tables {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.35rem;
-    margin-top: 0.45rem;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
   }
 
   .b-liquidation-print-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 8pt;
-    line-height: 1.25;
+    font-size: 7pt;
+    line-height: 1.15;
   }
 
   .b-liquidation-print-table td {
     border: 1px solid #c4c9d0;
-    padding: 3px 5px;
+    padding: 1px 3px;
     vertical-align: middle;
     color: #111;
     background: #fff;
@@ -98,55 +300,42 @@
   .b-liquidation-print-table td:last-child {
     width: 32%;
     text-align: center;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .b-liquidation-print-table tr {
-    height: 1.45em;
   }
 
   .b-liquidation-print-row--empty td {
-    border: none;
-    background: transparent;
+    border-color: transparent;
+    height: 0.45rem;
+    padding: 0;
   }
 
   .b-liquidation-print-row--no-outline td {
-    border: none;
-    background: transparent;
+    border-color: transparent;
   }
 
-  .b-liq-print-fulls {
-    color: #dc2626 !important;
+  .b-liq-print-val--green {
+    color: #15803d !important;
     font-weight: 700;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  .b-liquidation-print-table td.b-liq-print-val--green {
-    color: #16a34a !important;
+  .b-liq-print-val--blue {
+    color: #1d4ed8 !important;
+    font-weight: 700;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  .b-liquidation-print-table td.b-liq-print-val--blue {
-    color: #2563eb !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .b-liquidation-print-table td.b-liq-print-val--red {
+  .b-liq-print-val--red {
     color: #dc2626 !important;
+    font-weight: 700;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
   .b-liquidation-print-summary {
-    margin: 0.28rem 0 0;
+    margin: 0.1rem 0 0;
     font-size: 8pt;
-    font-weight: 600;
-    color: #111;
-    line-height: 1.2;
   }
 
   .b-liquidation-print-summary__dates {
@@ -157,20 +346,20 @@
   }
 
   .b-liquidation-breakdown {
-    margin-top: 0.7rem;
-    page-break-inside: avoid;
+    margin-top: 0.35rem;
+    page-break-inside: auto;
   }
 
   .b-liquidation-breakdown__header {
     text-align: center;
-    margin: 0 0 0.35rem;
-    padding-bottom: 0.25rem;
+    margin: 0 0 0.2rem;
+    padding-bottom: 0.15rem;
     border-bottom: 1px solid #111;
   }
 
   .b-liquidation-breakdown__header h2 {
     margin: 0;
-    font-size: 9pt;
+    font-size: 8pt;
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -178,8 +367,8 @@
   }
 
   .b-liquidation-breakdown__header p {
-    margin: 0.12rem 0 0;
-    font-size: 8.5pt;
+    margin: 0.06rem 0 0;
+    font-size: 7.5pt;
     font-weight: 600;
     color: #000;
   }
@@ -187,21 +376,21 @@
   .b-liquidation-breakdown__tables {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
-    gap: 0.3rem;
-    margin-top: 0.3rem;
+    gap: 0.2rem;
+    margin-top: 0.2rem;
   }
 
   .b-liquidation-breakdown-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 8pt;
-    line-height: 1.25;
+    font-size: 7pt;
+    line-height: 1.12;
   }
 
   .b-liquidation-breakdown-table th,
   .b-liquidation-breakdown-table td {
     border: 1px solid #9ca3af;
-    padding: 3px 5px;
+    padding: 1px 3px;
     vertical-align: middle;
     background: #fff;
   }
@@ -244,8 +433,8 @@
     background: #fff;
     vertical-align: top !important;
     text-align: right !important;
-    padding-top: 3px;
-    padding-right: 5px;
+    padding-top: 1px;
+    padding-right: 3px;
   }
 
   .b-liquidation-breakdown-table td.b-liq-print-val--red {
@@ -267,15 +456,19 @@
   }
 
   .b-liquidation-breakdown__total {
-    margin: 0.35rem 0 0;
-    padding-top: 0.2rem;
-    border-top: 2px solid #111;
-    font-size: 9pt;
+    margin: 0.2rem 0 0;
+    padding-top: 0.12rem;
+    border-top: 1.5px solid #111;
+    font-size: 8pt;
     font-weight: 700;
     letter-spacing: 0.03em;
     text-transform: uppercase;
     color: #dc2626 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  .b-liquidation-print-pack .fulls-print-sheet__end {
+    margin-top: 0.3rem;
   }
 }

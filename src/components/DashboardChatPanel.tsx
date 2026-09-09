@@ -18,6 +18,7 @@ import {
   listIncomingChatMessages,
   loadChatReadMap,
   markChatPeerRead,
+  mergeDirectChatMessages,
   playChatNotifySound,
   sendDirectChatMessage,
   subscribeChatReactions,
@@ -202,6 +203,28 @@ export function DashboardChatPanel({ currentUserId, currentUserName }: Dashboard
   }, [currentUserId])
 
   useEffect(() => {
+    if (!open || peer) return
+
+    let cancelled = false
+
+    async function refreshUnread() {
+      const result = await listIncomingChatMessages(currentUserId)
+      if (cancelled || result.error) return
+      const readMap = loadChatReadMap(currentUserId)
+      setUnreadByPeer(buildUnreadByPeer(result.data, readMap))
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshUnread()
+    }, 3000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [open, peer, currentUserId])
+
+  useEffect(() => {
     return subscribeDirectChatMessages(currentUserId, (message) => {
       const viewingPeer =
         openRef.current &&
@@ -211,7 +234,17 @@ export function DashboardChatPanel({ currentUserId, currentUserName }: Dashboard
 
       if (viewingPeer) {
         setMessages((prev) => {
-          if (prev.some((row) => row.id === message.id)) return prev
+          const existing = prev.find((row) => row.id === message.id)
+          if (existing) {
+            if (!message.attachment_url || existing.attachment_url === message.attachment_url) {
+              return prev
+            }
+            return prev.map((row) =>
+              row.id === message.id
+                ? { ...row, attachment_url: message.attachment_url ?? row.attachment_url }
+                : row,
+            )
+          }
           return [...prev, message]
         })
         if (message.sender_id === peerRef.current!.id) {
@@ -235,6 +268,48 @@ export function DashboardChatPanel({ currentUserId, currentUserName }: Dashboard
       playChatNotifySound()
     })
   }, [currentUserId])
+
+  // Poll the open thread so messages appear even if Realtime is unavailable (common on self-hosted).
+  useEffect(() => {
+    if (!open || !peer) return
+
+    let cancelled = false
+    const peerId = peer.id
+
+    async function refreshThread() {
+      const result = await listDirectChatMessages(currentUserId, peerId)
+      if (cancelled || result.error || result.missingTable) return
+
+      setMessages((prev) => mergeDirectChatMessages(prev, result.data))
+
+      const reactionResult = await listChatReactions(result.data.map((row) => row.id))
+      if (cancelled || reactionResult.error) return
+      setReactions(reactionResult.data)
+
+      markChatPeerRead(currentUserId, peerId)
+      setUnreadByPeer((prev) => {
+        if (!prev[peerId]) return prev
+        const next = { ...prev }
+        delete next[peerId]
+        return next
+      })
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshThread()
+    }, 2000)
+
+    function onVisible() {
+      if (document.visibilityState === 'visible') void refreshThread()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [open, peer, currentUserId])
 
   useEffect(() => {
     if (!open) return

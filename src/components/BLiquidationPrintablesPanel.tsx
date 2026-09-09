@@ -35,6 +35,17 @@ export type BLiquidationMode = 'fulls' | 'empties'
 const FULLS_CATEGORIES = ['PCPPI', 'SMC', 'Magnolia'] as const
 const EMPTIES_CATEGORIES = ['Pepsi MTS', 'SMC MTS', 'Magnolia MTS'] as const
 
+function pairedEmptiesCategory(fullsCategory: string) {
+  const name = fullsCategory.trim().toLowerCase()
+  if (name === 'pcppi' || name.includes('pepsi')) return 'Pepsi MTS'
+  if (name.includes('smc')) return 'SMC MTS'
+  return 'Magnolia MTS'
+}
+
+function withMovementId(movement: FullGoodsMovement, id: string): FullGoodsMovement {
+  return { ...movement, id }
+}
+
 function PrintIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -399,7 +410,11 @@ export function BLiquidationPrintablesPanel({
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [movements, setMovements] = useState<FullGoodsMovement[]>([])
+  const [emptiesMovements, setEmptiesMovements] = useState<FullGoodsMovement[]>([])
   const [categoryProducts, setCategoryProducts] = useState<
+    Array<{ id: string; name: string; subcategoryName: string }>
+  >([])
+  const [emptiesCategoryProducts, setEmptiesCategoryProducts] = useState<
     Array<{ id: string; name: string; subcategoryName: string }>
   >([])
   const [actualBeginning, setActualBeginning] = useState<ActualBeginningLookup | null>(null)
@@ -410,6 +425,8 @@ export function BLiquidationPrintablesPanel({
   const customerCompany = includeCustomerTx
     ? printableCategoryToCustomerCompany(selectedCategory)
     : null
+  const companionEmptiesCategory =
+    mode === 'fulls' ? pairedEmptiesCategory(selectedCategory) : null
 
   const summary = useMemo(() => {
     return computeFullBLiquidationSummary(movements, selectedCategory, dateTo, mode, {
@@ -435,8 +452,6 @@ export function BLiquidationPrintablesPanel({
       mode,
       includeCustomerTx ? actualBeginning : null,
     )
-    // Checked-SKU catalogs omit unchecked products; drop orphan rows so
-    // breakdown only lists products enabled for this branch.
     rows = rows.filter((row) => !row.productId.startsWith('orphan:'))
     return mode === 'empties' ? prepareEmptiesBreakdownRows(rows) : rows
   }, [
@@ -445,6 +460,48 @@ export function BLiquidationPrintablesPanel({
     selectedCategory,
     dateTo,
     mode,
+    actualBeginning,
+    includeCustomerTx,
+  ])
+
+  const emptiesSummary = useMemo(() => {
+    if (!companionEmptiesCategory) return null
+    return computeFullBLiquidationSummary(
+      emptiesMovements,
+      companionEmptiesCategory,
+      dateTo,
+      'empties',
+      {
+        products: emptiesCategoryProducts,
+        actualBeginning: includeCustomerTx ? actualBeginning : null,
+      },
+    )
+  }, [
+    companionEmptiesCategory,
+    emptiesMovements,
+    dateTo,
+    emptiesCategoryProducts,
+    actualBeginning,
+    includeCustomerTx,
+  ])
+
+  const emptiesProductRemains = useMemo(() => {
+    if (!companionEmptiesCategory) return [] as ProductRemainRow[]
+    let rows = computeProductRemains(
+      emptiesMovements,
+      emptiesCategoryProducts,
+      companionEmptiesCategory,
+      dateTo,
+      'empties',
+      includeCustomerTx ? actualBeginning : null,
+    )
+    rows = rows.filter((row) => !row.productId.startsWith('orphan:'))
+    return prepareEmptiesBreakdownRows(rows)
+  }, [
+    companionEmptiesCategory,
+    emptiesMovements,
+    emptiesCategoryProducts,
+    dateTo,
     actualBeginning,
     includeCustomerTx,
   ])
@@ -500,6 +557,7 @@ export function BLiquidationPrintablesPanel({
       )
 
       let nextMovements = branchMovements
+      let nextEmptiesMovements = branchMovements
       let customerError: string | null = null
 
       if (includeCustomerTx && customerCompany) {
@@ -515,31 +573,75 @@ export function BLiquidationPrintablesPanel({
         ])
         if (cancelled) return
         customerError = customerResult.error ?? routeResult.error
-        const customerMovements = customerResult.data.map(({ transaction, items }) =>
-          customerTxToPrintableMovement(transaction, items, mode, selectedCategory),
+
+        const modeCategory = selectedCategory
+        const emptiesCategory =
+          mode === 'fulls' ? pairedEmptiesCategory(selectedCategory) : selectedCategory
+
+        const customerModeMovements = customerResult.data.map(({ transaction, items }) =>
+          withMovementId(
+            customerTxToPrintableMovement(transaction, items, mode, modeCategory),
+            `${transaction.id}:customer:${mode}`,
+          ),
         )
-        const routeMovements = routeResult.data
+        const routeModeMovements = routeResult.data
           .map(({ summary, items }) =>
             routeSummaryToPrintableMovement(
               summary,
               items,
               mode,
-              selectedCategory,
+              modeCategory,
               customerCompany,
             ),
           )
           .filter((row): row is NonNullable<typeof row> => row != null)
+
         const byId = new Map<string, FullGoodsMovement>()
         for (const row of branchMovements) byId.set(row.id, row)
-        for (const row of customerMovements) byId.set(row.id, row)
-        for (const row of routeMovements) byId.set(row.id, row)
+        for (const row of customerModeMovements) byId.set(row.id, row)
+        for (const row of routeModeMovements) byId.set(row.id, row)
         nextMovements = [...byId.values()]
+
+        if (mode === 'fulls') {
+          const customerEmpties = customerResult.data.map(({ transaction, items }) =>
+            withMovementId(
+              customerTxToPrintableMovement(transaction, items, 'empties', emptiesCategory),
+              `${transaction.id}:customer:empties`,
+            ),
+          )
+          const routeEmpties = routeResult.data
+            .map(({ summary, items }) =>
+              routeSummaryToPrintableMovement(
+                summary,
+                items,
+                'empties',
+                emptiesCategory,
+                customerCompany,
+              ),
+            )
+            .filter((row): row is NonNullable<typeof row> => row != null)
+          const emptiesById = new Map<string, FullGoodsMovement>()
+          for (const row of branchMovements) emptiesById.set(row.id, row)
+          for (const row of customerEmpties) emptiesById.set(row.id, row)
+          for (const row of routeEmpties) emptiesById.set(row.id, row)
+          nextEmptiesMovements = [...emptiesById.values()]
+        }
       }
 
       setMovements(nextMovements)
+      setEmptiesMovements(mode === 'fulls' ? nextEmptiesMovements : [])
       setLoadError(movementsResult.error ?? catalogResult.error ?? customerError)
       setCategoryProducts(
         resolveCategoryProducts(catalogResult.data, selectedCategory, mode),
+      )
+      setEmptiesCategoryProducts(
+        mode === 'fulls'
+          ? resolveCategoryProducts(
+              catalogResult.data,
+              pairedEmptiesCategory(selectedCategory),
+              'empties',
+            )
+          : [],
       )
       setLoading(false)
     }
@@ -564,185 +666,144 @@ export function BLiquidationPrintablesPanel({
   }, [printing])
 
   return (
-    <section className="printables-panel fulls-printables" aria-label={panelTitle}>
-      <header className="printables-panel__head fulls-printables-head no-print">
-        <h1>{panelTitle}</h1>
-      </header>
-
-      <div className="fulls-printables-filters-row no-print">
-        <div
-          className={
-            mode === 'empties'
-              ? 'fulls-printables-filters b-liquidation-filters b-liquidation-filters--empties-inline'
-              : 'fulls-printables-filters b-liquidation-filters'
-          }
-        >
-          {mode === 'empties' ? (
-            <div className="b-liquidation-empties-row">
-              <span className="b-liquidation-empties-row__legend">Category</span>
-              <div className="b-liquidation-empties-row__controls">
-                <div
-                  className="b-liquidation-empties-row__checks"
-                  role="radiogroup"
-                  aria-label="Category"
+    <>
+      <section
+        className={`printables-panel fulls-printables b-liquidation-panel no-print${
+          mode === 'empties' ? ' is-empties' : ' is-fulls'
+        }`}
+        aria-label={panelTitle}
+      >
+        <header className="b-liquidation-panel__titlebar">
+          <h2 className="b-liquidation-panel__title">{modeTitle}</h2>
+        </header>
+        <div className="b-liquidation-panel__filters-row">
+          <div
+            className="fulls-printables-categories b-liquidation-panel__categories"
+            role="radiogroup"
+            aria-label="Category"
+          >
+            {categories.map((category) => {
+              const checked = selectedCategory === category
+              return (
+                <label
+                  key={category}
+                  className={
+                    checked ? 'fulls-printables-check is-checked' : 'fulls-printables-check'
+                  }
                 >
-                  {categories.map((category) => {
-                    const checked = selectedCategory === category
-                    return (
-                      <label
-                        key={category}
-                        className={
-                          checked
-                            ? 'fulls-printables-check is-checked'
-                            : 'fulls-printables-check'
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => setSelectedCategory(category)}
-                        />
-                        <span>{category}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-
-                <label className="fulls-printables-date">
-                  <span>From</span>
                   <input
-                    type="date"
-                    value={dateFrom}
-                    max={dateTo || undefined}
-                    onChange={(event) => {
-                      const next = event.target.value
-                      setDateFrom(next)
-                      if (dateTo && next > dateTo) setDateTo(next)
-                    }}
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => setSelectedCategory(category)}
                   />
+                  <span>{category}</span>
                 </label>
+              )
+            })}
+          </div>
 
-                <label className="fulls-printables-date">
-                  <span>To</span>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    min={dateFrom || undefined}
-                    onChange={(event) => {
-                      const next = event.target.value
-                      setDateTo(next)
-                      if (dateFrom && next && next < dateFrom) setDateFrom(next)
-                    }}
-                  />
-                </label>
-              </div>
+          <div className="b-liquidation-panel__date-print">
+            <div className="b-liquidation-dates">
+              <label className="fulls-printables-date">
+                <span>From</span>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo || undefined}
+                  onChange={(event) => {
+                    const next = event.target.value
+                    setDateFrom(next)
+                    if (dateTo && next > dateTo) setDateTo(next)
+                  }}
+                />
+              </label>
+
+              <label className="fulls-printables-date">
+                <span>To</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  onChange={(event) => {
+                    const next = event.target.value
+                    setDateTo(next)
+                    if (dateFrom && next && next < dateFrom) setDateFrom(next)
+                  }}
+                />
+              </label>
             </div>
-          ) : (
-            <>
-              <fieldset className="fulls-printables-categories">
-                <legend>Category</legend>
-                <div
-                  className="fulls-printables-categories__row"
-                  role="radiogroup"
-                  aria-label="Category"
-                >
-                  {categories.map((category) => {
-                    const checked = selectedCategory === category
-                    return (
-                      <label
-                        key={category}
-                        className={
-                          checked
-                            ? 'fulls-printables-check is-checked'
-                            : 'fulls-printables-check'
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => setSelectedCategory(category)}
-                        />
-                        <span>{category}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-              </fieldset>
 
-              <div className="b-liquidation-dates">
-                <label className="fulls-printables-date">
-                  <span>From</span>
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    max={dateTo || undefined}
-                    onChange={(event) => {
-                      const next = event.target.value
-                      setDateFrom(next)
-                      if (dateTo && next > dateTo) setDateTo(next)
-                    }}
-                  />
-                </label>
-
-                <label className="fulls-printables-date">
-                  <span>To</span>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    min={dateFrom || undefined}
-                    onChange={(event) => {
-                      const next = event.target.value
-                      setDateTo(next)
-                      if (dateFrom && next && next < dateFrom) setDateFrom(next)
-                    }}
-                  />
-                </label>
-              </div>
-            </>
-          )}
+            <button
+              type="button"
+              className="fulls-printables-print-btn fulls-printables-print-all b-liquidation-panel__print"
+              disabled={!dateFrom || !dateTo || loading || Boolean(loadError)}
+              onClick={() => setPrinting(true)}
+            >
+              <PrintIcon />
+              {loading ? 'Loading…' : 'Print'}
+            </button>
+          </div>
         </div>
 
-        <button
-          type="button"
-          className="fulls-printables-print-btn fulls-printables-print-all"
-          disabled={!dateFrom || !dateTo || loading || Boolean(loadError)}
-          onClick={() => setPrinting(true)}
-        >
-          <PrintIcon />
-          {loading ? 'Loading…' : 'Print'}
-        </button>
-      </div>
-
-      {loadError ? <p className="catalog-error no-print">{loadError}</p> : null}
+        {loadError ? <p className="catalog-error">{loadError}</p> : null}
+      </section>
 
       {printing ? (
-        <div className="fulls-print-sheet print-only b-liquidation-print-sheet" aria-hidden="true">
-          <header className="fulls-print-sheet__header">
-            <p className="fulls-print-sheet__company">The CMJ Corporation</p>
-            <p className="fulls-print-sheet__branch">CMJ {catalogBranch}</p>
-            <p className="fulls-print-sheet__title is-out">
-              {selectedCategory} {modeTitle}
-            </p>
-            <p className="b-liquidation-print-summary">
-              Summary Report [
-              <span className="b-liquidation-print-summary__dates">
-                {formatDisplayDate(dateFrom)} – {formatDisplayDate(dateTo)}
-              </span>
-              ]
-            </p>
-          </header>
+        <div className="b-liquidation-print-pack print-only" aria-hidden="true">
+          <div className="fulls-print-sheet b-liquidation-print-sheet b-liquidation-print-sheet--combined">
+            <header className="fulls-print-sheet__header">
+              <p className="fulls-print-sheet__company">The CMJ Corporation</p>
+              <p className="fulls-print-sheet__branch">CMJ {catalogBranch}</p>
+              <p className="fulls-print-sheet__title is-out">
+                {selectedCategory} {modeTitle}
+              </p>
+              <p className="b-liquidation-print-summary">
+                Summary Report [
+                <span className="b-liquidation-print-summary__dates">
+                  {formatDisplayDate(dateFrom)} – {formatDisplayDate(dateTo)}
+                </span>
+                ]
+              </p>
+            </header>
 
-          {summary ? (
-            <>
-              <BLiquidationPrintTables summary={summary} goodsLabel={goodsLabel} />
+            {summary ? (
+              <>
+                <BLiquidationPrintTables summary={summary} goodsLabel={goodsLabel} />
+                <BLiquidationBreakdown
+                  category={selectedCategory}
+                  dateTo={dateTo}
+                  rows={productRemains}
+                  goodsLabel={goodsLabel}
+                  summaryRemain={summary.totalStockRemain}
+                />
+              </>
+            ) : null}
+          </div>
+
+          {mode === 'fulls' && companionEmptiesCategory && emptiesSummary ? (
+            <div className="fulls-print-sheet b-liquidation-print-sheet b-liquidation-print-sheet--companion">
+              <header className="fulls-print-sheet__header b-liquidation-print-sheet__header--compact">
+                <p className="fulls-print-sheet__title is-out">
+                  {companionEmptiesCategory} Empties B-Liquidation
+                </p>
+                <p className="b-liquidation-print-summary">
+                  Summary Report [
+                  <span className="b-liquidation-print-summary__dates">
+                    {formatDisplayDate(dateFrom)} – {formatDisplayDate(dateTo)}
+                  </span>
+                  ]
+                </p>
+              </header>
+
+              <BLiquidationPrintTables summary={emptiesSummary} goodsLabel="Empties" />
               <BLiquidationBreakdown
-                category={selectedCategory}
+                category={companionEmptiesCategory}
                 dateTo={dateTo}
-                rows={productRemains}
-                goodsLabel={goodsLabel}
-                summaryRemain={summary.totalStockRemain}
+                rows={emptiesProductRemains}
+                goodsLabel="Empties"
+                summaryRemain={emptiesSummary.totalStockRemain}
               />
-            </>
+            </div>
           ) : null}
 
           <div className="fulls-print-sheet__end" aria-hidden="true">
@@ -752,6 +813,6 @@ export function BLiquidationPrintablesPanel({
           </div>
         </div>
       ) : null}
-    </section>
+    </>
   )
 }

@@ -11,6 +11,7 @@ export type DashboardCardId =
   | 'fullGoodsDailyIn'
   | 'emptiesDailyIn'
   | 'emptiesDailyOut'
+  | 'review'
   | 'factory'
   | 'ftPrintables'
   | 'skuPrintables'
@@ -49,14 +50,15 @@ const BRANCH_DASHBOARD_CARDS: Record<UserBranch, readonly DashboardCardId[]> = {
     'fullGoodsDailyIn',
     'emptiesDailyIn',
     'emptiesDailyOut',
+    'review',
     'customerPrintables',
     'routePrintables',
-    'dslPrintables',
     'fullsPrintables',
     'emptiesPrintables',
     'actualInventory',
     'inventory',
     'collection',
+    'dslPrintables',
   ],
 }
 

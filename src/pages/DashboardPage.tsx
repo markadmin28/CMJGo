@@ -5,6 +5,7 @@ import { CmjGoLogo } from '../components/CmjGoLogo'
 import { CustomersDiscountPanel } from '../components/CustomersDiscountPanel'
 import { FthDiscountPanel } from '../components/FthDiscountPanel'
 import { FullGoodsPanel } from '../components/FullGoodsPanel'
+import { FullGoodsReviewPanel } from '../components/FullGoodsReviewPanel'
 import {
   PrintablesChooserModal,
   type PrintableOption,
@@ -37,6 +38,7 @@ import {
   type DailyGoodsCompany,
   type DailyGoodsMenuKind,
 } from '../components/DailyGoodsOptionsPopover'
+import { ReviewOptionsPopover, type ReviewOptionId } from '../components/ReviewOptionsPopover'
 import {
   ActualInventoryOptionsPopover,
   type ActualInventoryCompany,
@@ -46,6 +48,7 @@ import {
   CollectionOptionsPopover,
   type CollectionOptionId,
 } from '../components/CollectionOptionsPopover'
+import { DslOptionsPopover } from '../components/DslOptionsPopover'
 import { CustomerTransactionPanel } from '../components/CustomerTransactionPanel'
 import { RouteTransactionPanel } from '../components/RouteTransactionPanel'
 import {
@@ -91,6 +94,8 @@ type DashModule =
   | 'fullGoodsDailyIn'
   | 'emptiesDailyIn'
   | 'emptiesDailyOut'
+  | 'fullGoodsReview'
+  | 'emptiesReview'
   | 'skuPrintables'
   | 'inventory'
   | 'actualInventory'
@@ -147,6 +152,8 @@ export function DashboardPage() {
   const [dailyGoodsMenuKind, setDailyGoodsMenuKind] = useState<DailyGoodsMenuKind | null>(null)
   const [dailyGoodsMenuPos, setDailyGoodsMenuPos] = useState({ top: 0, left: 0 })
   const [dailyGoodsCompany, setDailyGoodsCompany] = useState<DailyGoodsCompany>('Pepsi')
+  const [reviewMenuOpen, setReviewMenuOpen] = useState(false)
+  const [reviewMenuPos, setReviewMenuPos] = useState({ top: 0, left: 0 })
   const [actualInventoryMenuOpen, setActualInventoryMenuOpen] = useState(false)
   const [actualInventoryMenuPos, setActualInventoryMenuPos] = useState({ top: 0, left: 0 })
   const [actualInventoryCompany, setActualInventoryCompany] =
@@ -157,6 +164,9 @@ export function DashboardPage() {
   const [collectionMenuPos, setCollectionMenuPos] = useState({ top: 0, left: 0 })
   const [collectionOption, setCollectionOption] =
     useState<CollectionOptionId>('mtsCollections')
+  const [dslMenuOpen, setDslMenuOpen] = useState(false)
+  const [dslMenuPos, setDslMenuPos] = useState({ top: 0, left: 0 })
+  const [dslCompany, setDslCompany] = useState<CustomerTransactionCompany>('Pepsi')
   const fullName =
     typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : null
   const userBranch = getUserBranch(user?.user_metadata as Record<string, unknown> | undefined)
@@ -179,15 +189,28 @@ export function DashboardPage() {
   const showBranchPicker = needsWorkspacePicker && workspaceBranch == null && activeModule === 'home'
   const showModuleHome = activeModule === 'home' && !showBranchPicker
 
-  function goHome() {
+  function closeMenus() {
     setSkuMenuOpen(false)
     setCustomerTxMenuOpen(false)
     setRouteTxMenuOpen(false)
     setDailyGoodsMenuKind(null)
+    setReviewMenuOpen(false)
     setActualInventoryMenuOpen(false)
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setDslMenuOpen(false)
     setPrintablesOpen(false)
+  }
+
+  /** Return to the current workspace module cards (keep Davao / Nabunturan selection). */
+  function goHome() {
+    closeMenus()
+    setActiveModule('home')
+  }
+
+  /** Maragusan only: leave workspace and show Nabunturan / Davao branch cards. */
+  function goBranchPicker() {
+    closeMenus()
     setActiveModule('home')
     if (needsWorkspacePicker) setWorkspaceBranch(null)
   }
@@ -202,6 +225,7 @@ export function DashboardPage() {
     setActualInventoryMenuOpen(false)
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setDslMenuOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setPrintablesMenuPos({
       top: rect.top,
@@ -229,6 +253,7 @@ export function DashboardPage() {
     setActualInventoryMenuOpen(false)
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setDslMenuOpen(false)
     setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setSkuMenuPos({
@@ -245,6 +270,7 @@ export function DashboardPage() {
     setActualInventoryMenuOpen(false)
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setDslMenuOpen(false)
     setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setCustomerTxMenuPos({
@@ -261,6 +287,7 @@ export function DashboardPage() {
     setActualInventoryMenuOpen(false)
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setDslMenuOpen(false)
     setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setRouteTxMenuPos({
@@ -277,9 +304,11 @@ export function DashboardPage() {
     setSkuMenuOpen(false)
     setCustomerTxMenuOpen(false)
     setRouteTxMenuOpen(false)
+    setReviewMenuOpen(false)
     setActualInventoryMenuOpen(false)
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setDslMenuOpen(false)
     setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setDailyGoodsMenuPos({
@@ -289,13 +318,38 @@ export function DashboardPage() {
     setDailyGoodsMenuKind(kind)
   }
 
+  function openReviewMenu(event: MouseEvent<HTMLButtonElement>) {
+    setSkuMenuOpen(false)
+    setCustomerTxMenuOpen(false)
+    setRouteTxMenuOpen(false)
+    setDailyGoodsMenuKind(null)
+    setActualInventoryMenuOpen(false)
+    setInventoryMenuOpen(false)
+    setCollectionMenuOpen(false)
+    setDslMenuOpen(false)
+    setPrintablesOpen(false)
+    const rect = event.currentTarget.getBoundingClientRect()
+    setReviewMenuPos({
+      top: rect.top,
+      left: rect.right + 10,
+    })
+    setReviewMenuOpen(true)
+  }
+
+  function handleReviewOption(option: ReviewOptionId) {
+    setReviewMenuOpen(false)
+    setActiveModule(option)
+  }
+
   function openActualInventoryMenu(event: MouseEvent<HTMLButtonElement>) {
     setSkuMenuOpen(false)
     setCustomerTxMenuOpen(false)
     setRouteTxMenuOpen(false)
     setDailyGoodsMenuKind(null)
+    setReviewMenuOpen(false)
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setDslMenuOpen(false)
     setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setActualInventoryMenuPos({
@@ -312,6 +366,7 @@ export function DashboardPage() {
     setDailyGoodsMenuKind(null)
     setActualInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
+    setDslMenuOpen(false)
     setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setInventoryMenuPos({
@@ -326,8 +381,10 @@ export function DashboardPage() {
     setCustomerTxMenuOpen(false)
     setRouteTxMenuOpen(false)
     setDailyGoodsMenuKind(null)
+    setReviewMenuOpen(false)
     setActualInventoryMenuOpen(false)
     setInventoryMenuOpen(false)
+    setDslMenuOpen(false)
     setPrintablesOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setCollectionMenuPos({
@@ -335,6 +392,30 @@ export function DashboardPage() {
       left: rect.right + 10,
     })
     setCollectionMenuOpen(true)
+  }
+
+  function openDslMenu(event: MouseEvent<HTMLButtonElement>) {
+    setSkuMenuOpen(false)
+    setCustomerTxMenuOpen(false)
+    setRouteTxMenuOpen(false)
+    setDailyGoodsMenuKind(null)
+    setReviewMenuOpen(false)
+    setActualInventoryMenuOpen(false)
+    setInventoryMenuOpen(false)
+    setCollectionMenuOpen(false)
+    setPrintablesOpen(false)
+    const rect = event.currentTarget.getBoundingClientRect()
+    setDslMenuPos({
+      top: rect.top,
+      left: rect.right + 10,
+    })
+    setDslMenuOpen(true)
+  }
+
+  function handleDslOption(company: CustomerTransactionCompany) {
+    setDslMenuOpen(false)
+    setDslCompany(company)
+    setActiveModule('dslPrintables')
   }
 
   function handleSkuOption(option: SkuOption) {
@@ -433,6 +514,13 @@ export function DashboardPage() {
       onClick: () => undefined,
     },
     {
+      id: 'review',
+      className: 'dash-module-btn--fullGoodsReview',
+      label: 'Review',
+      icon: fullGoodsModuleIcon,
+      onClick: () => undefined,
+    },
+    {
       id: 'customerPrintables',
       className: 'dash-module-btn--customerPrintables',
       label: 'Customer Printables',
@@ -445,13 +533,6 @@ export function DashboardPage() {
       label: 'Route Printables',
       icon: fullsPrintablesModuleIcon,
       onClick: () => setActiveModule('routePrintables'),
-    },
-    {
-      id: 'dslPrintables',
-      className: 'dash-module-btn--dslPrintables',
-      label: 'DSL Printables',
-      icon: skuPrintablesModuleIcon,
-      onClick: () => setActiveModule('dslPrintables'),
     },
     {
       id: 'fth',
@@ -537,6 +618,13 @@ export function DashboardPage() {
       icon: fthModuleIcon,
       onClick: () => undefined,
     },
+    {
+      id: 'dslPrintables',
+      className: 'dash-module-btn--dslPrintables',
+      label: 'Daily Sales Liquidation Report',
+      icon: skuPrintablesModuleIcon,
+      onClick: () => undefined,
+    },
   ]
 
   const visibleHomeCards = homeCards.filter((card) => allowedCards.includes(card.id))
@@ -591,6 +679,10 @@ export function DashboardPage() {
             openDailyGoodsMenu('emptiesDailyOut', event)
             return
           }
+          if (card.id === 'review') {
+            openReviewMenu(event)
+            return
+          }
           if (card.id === 'actualInventory') {
             if (effectiveBranch === 'Nabunturan') {
               openActualInventoryMenu(event)
@@ -605,6 +697,10 @@ export function DashboardPage() {
           }
           if (card.id === 'collection') {
             openCollectionMenu(event)
+            return
+          }
+          if (card.id === 'dslPrintables') {
+            openDslMenu(event)
             return
           }
           if (card.id === 'fullsPrintables') {
@@ -633,16 +729,40 @@ export function DashboardPage() {
       {showHomeChrome ? <div className="dash-bg" aria-hidden="true" /> : null}
       <div className="dash-glow" aria-hidden="true" />
 
-      <header className="dash-header">
+      <header className="dash-header no-print">
         <div className="dash-header-inner">
-          <button
-            type="button"
-            className="dash-logo-btn"
-            onClick={goHome}
-            aria-label="Go to home"
-          >
-            <CmjGoLogo size="sm" showWordmark className="dash-logo" />
-          </button>
+          <div className="dash-header-brand">
+            <button
+              type="button"
+              className="dash-logo-btn"
+              onClick={goHome}
+              aria-label="Go to home"
+            >
+              <CmjGoLogo size="sm" showWordmark className="dash-logo" />
+            </button>
+            {needsWorkspacePicker && workspaceBranch ? (
+              <div className="dash-workspace-inline" aria-label={`Workspace ${workspaceBranch}`}>
+                <button
+                  type="button"
+                  className="dash-back-btn dash-workspace-inline__branches"
+                  onClick={goBranchPicker}
+                >
+                  ← Branches
+                </button>
+                <span className="dash-workspace-inline__label">{workspaceBranch}</span>
+              </div>
+            ) : null}
+            {!showHomeChrome && !showBranchPicker ? (
+              <button
+                type="button"
+                className="dash-back-btn"
+                onClick={goHome}
+                aria-label="Back to dashboard"
+              >
+                ← Back
+              </button>
+            ) : null}
+          </div>
           <div className="dash-header-actions">
             <div className="dash-user-chip" title={user?.email ?? undefined}>
               <span className="dash-user-avatar">
@@ -707,14 +827,6 @@ export function DashboardPage() {
               }
               aria-label="Modules"
             >
-              {needsWorkspacePicker && workspaceBranch ? (
-                <div className="dash-workspace-bar">
-                  <button type="button" className="btn-secondary dash-workspace-back" onClick={goHome}>
-                    ← Branches
-                  </button>
-                  <span className="dash-workspace-label">{workspaceBranch}</span>
-                </div>
-              ) : null}
               {useSkuStack ? (
                 <>
                   <div className="dash-modules-sku-stack">{skuStackCards.map(renderHomeCard)}</div>
@@ -726,11 +838,6 @@ export function DashboardPage() {
             </section>
           ) : (
             <div className="dash-modules-empty" role="status">
-              {needsWorkspacePicker && workspaceBranch ? (
-                <button type="button" className="btn-secondary dash-workspace-back" onClick={goHome}>
-                  ← Branches
-                </button>
-              ) : null}
               <p className="dash-modules-empty__title">No modules for this branch yet</p>
               <p>
                 {effectiveBranch
@@ -768,11 +875,21 @@ export function DashboardPage() {
         {activeModule === 'customerPrintables' && canAccess('customerPrintables') ? (
           <CustomerPrintablesPanel branch={effectiveBranch} />
         ) : null}
+        {activeModule === 'fullGoodsReview' && canAccess('review') ? (
+          <FullGoodsReviewPanel branch={effectiveBranch} mode="fullGoods" onClose={goHome} />
+        ) : null}
+        {activeModule === 'emptiesReview' && canAccess('review') ? (
+          <FullGoodsReviewPanel branch={effectiveBranch} mode="empties" onClose={goHome} />
+        ) : null}
         {activeModule === 'routePrintables' && canAccess('routePrintables') ? (
           <RoutePrintablesPanel branch={effectiveBranch} />
         ) : null}
         {activeModule === 'dslPrintables' && canAccess('dslPrintables') ? (
-          <DslPrintablesPanel branch={effectiveBranch} />
+          <DslPrintablesPanel
+            branch={effectiveBranch}
+            company={dslCompany}
+            onClose={goHome}
+          />
         ) : null}
         {activeModule === 'actualInventory' && canAccess('actualInventory') ? (
           <ActualInventoryPanel
@@ -889,6 +1006,14 @@ export function DashboardPage() {
         />
       ) : null}
 
+      <ReviewOptionsPopover
+        open={reviewMenuOpen}
+        top={reviewMenuPos.top}
+        left={reviewMenuPos.left}
+        onClose={() => setReviewMenuOpen(false)}
+        onSelect={handleReviewOption}
+      />
+
       <ActualInventoryOptionsPopover
         open={actualInventoryMenuOpen}
         top={actualInventoryMenuPos.top}
@@ -911,6 +1036,14 @@ export function DashboardPage() {
         left={collectionMenuPos.left}
         onClose={() => setCollectionMenuOpen(false)}
         onSelect={handleCollectionOption}
+      />
+
+      <DslOptionsPopover
+        open={dslMenuOpen}
+        top={dslMenuPos.top}
+        left={dslMenuPos.left}
+        onClose={() => setDslMenuOpen(false)}
+        onSelect={handleDslOption}
       />
 
       <PrintablesChooserModal

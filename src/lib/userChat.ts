@@ -377,7 +377,7 @@ export function subscribeDirectChatMessages(
   onInsert: (message: UserChatMessage) => void,
 ) {
   const channel = supabase
-    .channel(`user-chat:${currentUserId}`)
+    .channel(`user-chat:${currentUserId}:${crypto.randomUUID()}`)
     .on(
       'postgres_changes',
       {
@@ -389,7 +389,14 @@ export function subscribeDirectChatMessages(
         const row = payload.new as UserChatMessage
         if (!row?.id) return
         if (row.sender_id !== currentUserId && row.recipient_id !== currentUserId) return
-        void enrichChatMessagesWithUrls([row]).then(([enriched]) => onInsert(enriched))
+
+        // Show immediately so chat updates even if URL signing is slow/unavailable.
+        onInsert({ ...row, attachment_url: row.attachment_url ?? null })
+        if (row.attachment_path) {
+          void enrichChatMessagesWithUrls([row]).then(([enriched]) => {
+            if (enriched?.attachment_url) onInsert(enriched)
+          })
+        }
       },
     )
     .subscribe()
@@ -397,6 +404,46 @@ export function subscribeDirectChatMessages(
   return () => {
     void supabase.removeChannel(channel)
   }
+}
+
+/** Merge server rows into the local thread without dropping existing signed URLs. */
+export function mergeDirectChatMessages(
+  previous: UserChatMessage[],
+  next: UserChatMessage[],
+): UserChatMessage[] {
+  if (next.length === 0) return previous
+  const prevById = new Map(previous.map((row) => [row.id, row]))
+  let changed = previous.length !== next.length
+
+  const merged = next.map((row) => {
+    const old = prevById.get(row.id)
+    if (!old) {
+      changed = true
+      return row
+    }
+    if (
+      old.body !== row.body ||
+      old.attachment_path !== row.attachment_path ||
+      old.attachment_name !== row.attachment_name
+    ) {
+      changed = true
+    }
+    return {
+      ...row,
+      attachment_url: row.attachment_url || old.attachment_url || null,
+    }
+  })
+
+  if (!changed) {
+    for (let i = 0; i < previous.length; i += 1) {
+      if (previous[i]?.id !== next[i]?.id) {
+        changed = true
+        break
+      }
+    }
+  }
+
+  return changed ? merged : previous
 }
 
 export function subscribeChatReactions(
