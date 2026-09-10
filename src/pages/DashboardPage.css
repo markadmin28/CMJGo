@@ -267,16 +267,16 @@
 
 .dash-modules {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 96px), 108px));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 84px), 96px));
   justify-content: start;
   align-content: start;
-  gap: 0.5rem;
+  gap: 0.45rem;
   padding-top: 0.75rem;
   width: 100%;
 }
 
 .dash-modules--with-sku-stack {
-  --dash-module-size: 108px;
+  --dash-module-size: 96px;
   --dash-module-half-gap: calc(var(--dash-module-size) / 2);
   display: flex;
   flex-wrap: wrap;
@@ -356,11 +356,11 @@
 }
 
 .dash-modules--branches {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 96px), 108px));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 84px), 96px));
 }
 
 .dash-modules--compact {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 96px), 108px));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 84px), 96px));
 }
 
 .dash-module-btn--branch-nabunturan .dash-module-btn__icon {
@@ -381,15 +381,15 @@
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 0.4rem;
+  gap: 0.32rem;
   width: 100%;
-  max-width: 108px;
+  max-width: 96px;
   aspect-ratio: 1;
   height: auto;
-  min-height: 96px;
-  padding: 0.55rem 0.4rem;
+  min-height: 86px;
+  padding: 0.45rem 0.32rem;
   border: 1.5px solid rgba(120, 160, 185, 0.85);
-  border-radius: 14px;
+  border-radius: 12px;
   background: linear-gradient(165deg, #ffffff 0%, #f4faf8 100%);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.95) inset,
@@ -435,9 +435,9 @@
 .dash-module-btn__icon {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 11px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
   color: #fff;
   border: 1px solid transparent;
   box-shadow: 0 5px 12px rgba(22, 50, 74, 0.16);
@@ -784,10 +784,10 @@
 
 .dash-module-btn__label {
   font-family: var(--font-heading);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: var(--font-weight-medium);
   letter-spacing: -0.01em;
-  line-height: 1.2;
+  line-height: 1.15;
   color: #0f2a3d;
   transition:
     color 0.2s ease,
@@ -885,10 +885,10 @@
 
   .dash-module-btn {
     max-width: none;
-    min-height: 88px;
+    min-height: 78px;
   }
 
   .dash-module-btn__label {
-    font-size: 9px;
+    font-size: 8.5px;
   }
 }
