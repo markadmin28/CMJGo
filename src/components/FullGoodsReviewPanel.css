@@ -312,14 +312,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.fg-review__footer {
-  padding: 0.3rem 0.75rem 0.4rem;
-  border-top: 1px solid var(--fg-review-line);
-  color: var(--fg-review-muted);
-  font-size: 0.6rem;
-  text-align: center;
-}
-
 @media (max-width: 900px) {
   .fg-review__filters {
     grid-template-columns: 1fr;

@@ -22,6 +22,7 @@ import { SkuPrintablesPanel } from '../components/SkuPrintablesPanel'
 import { CustomerPrintablesPanel } from '../components/CustomerPrintablesPanel'
 import { RoutePrintablesPanel } from '../components/RoutePrintablesPanel'
 import { DslPrintablesPanel } from '../components/DslPrintablesPanel'
+import { DailySalesLiquidationPanel } from '../components/DailySalesLiquidationPanel'
 import { BLiquidationPrintablesPanel } from '../components/BLiquidationPrintablesPanel'
 import { FullsPrintablesPanel } from '../components/FullsPrintablesPanel'
 import { BoBadOrderPanel } from '../components/BoBadOrderPanel'
@@ -91,6 +92,7 @@ type DashModule =
   | 'customerPrintables'
   | 'routePrintables'
   | 'dslPrintables'
+  | 'dailySalesLiquidation'
   | 'fullGoodsDailyIn'
   | 'emptiesDailyIn'
   | 'emptiesDailyOut'
@@ -136,6 +138,7 @@ export function DashboardPage() {
   const [printablesMenuPos, setPrintablesMenuPos] = useState({ top: 0, left: 0 })
   const [inventoryCategory, setInventoryCategory] = useState<InventoryCategory>('PCPPI')
   const [factoryOpen, setFactoryOpen] = useState(false)
+  const [factoryMenuPos, setFactoryMenuPos] = useState({ top: 0, left: 0 })
   const [factoryCategory, setFactoryCategory] = useState<InventoryCategory>('PCPPI')
   const [printablesKind, setPrintablesKind] = useState<PrintablesChooserKind>('fulls')
   const [activeModule, setActiveModule] = useState<DashModule>('home')
@@ -226,6 +229,7 @@ export function DashboardPage() {
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
     setDslMenuOpen(false)
+    setFactoryOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setPrintablesMenuPos({
       top: rect.top,
@@ -246,6 +250,25 @@ export function DashboardPage() {
     setActiveModule('factoryTransaction')
   }
 
+  function openFactoryMenu(event: MouseEvent<HTMLButtonElement>) {
+    setSkuMenuOpen(false)
+    setCustomerTxMenuOpen(false)
+    setRouteTxMenuOpen(false)
+    setDailyGoodsMenuKind(null)
+    setReviewMenuOpen(false)
+    setActualInventoryMenuOpen(false)
+    setInventoryMenuOpen(false)
+    setCollectionMenuOpen(false)
+    setDslMenuOpen(false)
+    setPrintablesOpen(false)
+    const rect = event.currentTarget.getBoundingClientRect()
+    setFactoryMenuPos({
+      top: rect.top,
+      left: rect.right + 10,
+    })
+    setFactoryOpen(true)
+  }
+
   function openSkuMenu(event: MouseEvent<HTMLButtonElement>) {
     setCustomerTxMenuOpen(false)
     setRouteTxMenuOpen(false)
@@ -255,6 +278,7 @@ export function DashboardPage() {
     setCollectionMenuOpen(false)
     setDslMenuOpen(false)
     setPrintablesOpen(false)
+    setFactoryOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setSkuMenuPos({
       top: rect.top,
@@ -272,6 +296,7 @@ export function DashboardPage() {
     setCollectionMenuOpen(false)
     setDslMenuOpen(false)
     setPrintablesOpen(false)
+    setFactoryOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setCustomerTxMenuPos({
       top: rect.top,
@@ -289,6 +314,7 @@ export function DashboardPage() {
     setCollectionMenuOpen(false)
     setDslMenuOpen(false)
     setPrintablesOpen(false)
+    setFactoryOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setRouteTxMenuPos({
       top: rect.top,
@@ -310,6 +336,7 @@ export function DashboardPage() {
     setCollectionMenuOpen(false)
     setDslMenuOpen(false)
     setPrintablesOpen(false)
+    setFactoryOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setDailyGoodsMenuPos({
       top: rect.top,
@@ -328,6 +355,7 @@ export function DashboardPage() {
     setCollectionMenuOpen(false)
     setDslMenuOpen(false)
     setPrintablesOpen(false)
+    setFactoryOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setReviewMenuPos({
       top: rect.top,
@@ -351,6 +379,7 @@ export function DashboardPage() {
     setCollectionMenuOpen(false)
     setDslMenuOpen(false)
     setPrintablesOpen(false)
+    setFactoryOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setActualInventoryMenuPos({
       top: rect.top,
@@ -368,6 +397,7 @@ export function DashboardPage() {
     setCollectionMenuOpen(false)
     setDslMenuOpen(false)
     setPrintablesOpen(false)
+    setFactoryOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setInventoryMenuPos({
       top: rect.top,
@@ -386,6 +416,7 @@ export function DashboardPage() {
     setInventoryMenuOpen(false)
     setDslMenuOpen(false)
     setPrintablesOpen(false)
+    setFactoryOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setCollectionMenuPos({
       top: rect.top,
@@ -404,6 +435,7 @@ export function DashboardPage() {
     setInventoryMenuOpen(false)
     setCollectionMenuOpen(false)
     setPrintablesOpen(false)
+    setFactoryOpen(false)
     const rect = event.currentTarget.getBoundingClientRect()
     setDslMenuPos({
       top: rect.top,
@@ -415,7 +447,7 @@ export function DashboardPage() {
   function handleDslOption(company: CustomerTransactionCompany) {
     setDslMenuOpen(false)
     setDslCompany(company)
-    setActiveModule('dslPrintables')
+    setActiveModule('dailySalesLiquidation')
   }
 
   function handleSkuOption(option: SkuOption) {
@@ -535,6 +567,13 @@ export function DashboardPage() {
       onClick: () => setActiveModule('routePrintables'),
     },
     {
+      id: 'dslPrintables',
+      className: 'dash-module-btn--dslPrintables',
+      label: 'DSL Printables',
+      icon: skuPrintablesModuleIcon,
+      onClick: () => setActiveModule('dslPrintables'),
+    },
+    {
       id: 'fth',
       className: 'dash-module-btn--fth',
       label: 'FTH Discount',
@@ -567,7 +606,7 @@ export function DashboardPage() {
       className: 'dash-module-btn--factory',
       label: 'Fractory Transaction',
       icon: factoryModuleIcon,
-      onClick: () => setFactoryOpen(true),
+      onClick: () => undefined,
     },
     {
       id: 'ftPrintables',
@@ -619,8 +658,8 @@ export function DashboardPage() {
       onClick: () => undefined,
     },
     {
-      id: 'dslPrintables',
-      className: 'dash-module-btn--dslPrintables',
+      id: 'dailySalesLiquidation',
+      className: 'dash-module-btn--dailySalesLiquidation',
       label: 'Daily Sales Liquidation Report',
       icon: skuPrintablesModuleIcon,
       onClick: () => undefined,
@@ -695,11 +734,15 @@ export function DashboardPage() {
             openInventoryMenu(event)
             return
           }
+          if (card.id === 'factory') {
+            openFactoryMenu(event)
+            return
+          }
           if (card.id === 'collection') {
             openCollectionMenu(event)
             return
           }
-          if (card.id === 'dslPrintables') {
+          if (card.id === 'dailySalesLiquidation') {
             openDslMenu(event)
             return
           }
@@ -885,7 +928,10 @@ export function DashboardPage() {
           <RoutePrintablesPanel branch={effectiveBranch} />
         ) : null}
         {activeModule === 'dslPrintables' && canAccess('dslPrintables') ? (
-          <DslPrintablesPanel
+          <DslPrintablesPanel branch={effectiveBranch} />
+        ) : null}
+        {activeModule === 'dailySalesLiquidation' && canAccess('dailySalesLiquidation') ? (
+          <DailySalesLiquidationPanel
             branch={effectiveBranch}
             company={dslCompany}
             onClose={goHome}
@@ -1057,6 +1103,8 @@ export function DashboardPage() {
 
       <FactoryTransactionChooserModal
         open={factoryOpen}
+        top={factoryMenuPos.top}
+        left={factoryMenuPos.left}
         onClose={() => setFactoryOpen(false)}
         onSelect={handleFactorySelect}
       />
@@ -1064,13 +1112,6 @@ export function DashboardPage() {
       {isMasterAdmin ? (
         <AddUserModal open={addUserOpen} onClose={() => setAddUserOpen(false)} />
       ) : null}
-
-      <footer className="dash-footer no-print">
-        <p>
-          CMJgo Web Application · Powered by CMJ-MIS · Developed by Mark Morales · All rights
-          reserved 2026
-        </p>
-      </footer>
     </div>
   )
 }

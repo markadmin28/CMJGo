@@ -64,8 +64,11 @@ export function CustomerTransactionPrintSheet({
 
   const plateDisplay = formatCustomerTxPlateDisplay(data.truckNo, data.plateNo)
   const paymentValue = Number(data.paymentAmount)
+  const incentivesValue = Number(data.incentivesAmount)
   const hasPayment = data.paymentAmount.trim() !== '' && Number.isFinite(paymentValue)
-  const paid = hasPayment ? paymentValue : 0
+  const hasIncentives =
+    data.incentivesAmount.trim() !== '' && Number.isFinite(incentivesValue)
+  const paid = (hasPayment ? paymentValue : 0) + (hasIncentives ? incentivesValue : 0)
   const balance = paid - data.payablesTotal
   const chequeLabel = data.cashChequeNo.trim() || '—'
   const isDslLayout = layout === 'dsl'
@@ -169,10 +172,14 @@ export function CustomerTransactionPrintSheet({
       </div>
       <div className="ctx-print-sheet__row">
         <span>{chequeLabel}:</span>
-        <strong className="is-green">{money(paid)}</strong>
+        <strong className="is-green">{money(hasPayment ? paymentValue : 0)}</strong>
       </div>
       <div className="ctx-print-sheet__row">
-        <span>:</span>
+        <span>INCENTIVES:</span>
+        <strong className="is-green">{money(hasIncentives ? incentivesValue : 0)}</strong>
+      </div>
+      <div className="ctx-print-sheet__row">
+        <span>BALANCE:</span>
         <strong className={balance > 0.005 ? 'is-blue' : 'is-red'}>
           {money(Math.abs(balance) < 0.005 ? 0 : Math.abs(balance))}
         </strong>

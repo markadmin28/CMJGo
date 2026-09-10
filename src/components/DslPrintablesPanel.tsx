@@ -2,67 +2,92 @@ import { useEffect, useMemo, useState } from 'react'
 import type { UserBranch } from '../lib/branches'
 import {
   formatCustomerTxPlateDisplay,
+  formatLedgerMoney,
   type CustomerTransactionCompany,
 } from '../lib/customerTransaction'
 import {
-  listCustomerTransactionsWithItemsInRange,
+  buildCustomerTxPrintSheetData,
+  type CustomerTxPrintSheetData,
+} from '../lib/customerTxPrint'
+import {
+  getCustomerTransactionDetail,
+  listCustomerTransactionsByDate,
   toIsoDateInput,
-  type CustomerTxItemRecord,
   type CustomerTxRecord,
 } from '../lib/customerTxSave'
+import { listFullGoodsMovements } from '../lib/fullGoods'
+import { buildRouteSummaryPrintSheetData } from '../lib/routeSummaryPrint'
 import {
   listRouteSummariesByDate,
   salesNoForCompany,
   type RouteSummaryItemRecord,
   type RouteSummaryRecord,
 } from '../lib/routeSummarySave'
+import { formatRouteMoney } from '../lib/routeTransaction'
+import type { FullGoodsMovement } from '../types/fullGoods'
+import { CustomerTransactionPrintSheet } from './CustomerTransactionPrintSheet'
+import {
+  RouteSummaryPrintSheet,
+  type RouteSummaryPrintSheetData,
+} from './RouteSummaryPrintSheet'
+import './FullGoodsPanel.css'
+import './PrintablesPanel.css'
+import './FullsPrintablesPanel.css'
+import './RoutePrintablesPanel.css'
 import './DslPrintablesPanel.css'
+
+const PRINTABLE_COMPANIES = [
+  { label: 'PEPSI', company: 'Pepsi' as const },
+  { label: 'SMC', company: 'SMC' as const },
+  { label: 'MAGNOLIA', company: 'Magnolia' as const },
+] as const
 
 type RouteDayRecord = {
   summary: RouteSummaryRecord
   items: RouteSummaryItemRecord[]
 }
 
-type CustomerDayRecord = {
-  transaction: CustomerTxRecord
-  items: CustomerTxItemRecord[]
-}
+type DslListRow =
+  | {
+      key: string
+      source: 'customer'
+      sourceLabel: string
+      refNo: string
+      detail: string
+      meta: string
+      amountLabel: string
+      customer: CustomerTxRecord
+    }
+  | {
+      key: string
+      source: 'route'
+      sourceLabel: string
+      refNo: string
+      detail: string
+      meta: string
+      amountLabel: string
+      route: RouteDayRecord
+    }
+  | {
+      key: string
+      source: 'fullsDailyIn' | 'emptiesDailyIn' | 'emptiesDailyOut'
+      sourceLabel: string
+      refNo: string
+      detail: string
+      meta: string
+      amountLabel: string
+      movement: FullGoodsMovement
+      movementMode: 'fulls' | 'empties'
+    }
 
-type DslLiquidationRow = {
-  key: string
-  source: 'customer' | 'route'
-  dateLabel: string
-  salesNo: string
-  truckCustomer: string
-  cases: number
-  salesAmt: number
-  mtsReturn: number
-  mtsAmt: number
-  totalPayable: number
-  cashAmt: number
-  chequeAmt: number
-  shortOver: number
-  discount: number
-  accounts: number
-}
-
-type ColumnTotals = {
-  cases: number
-  salesAmt: number
-  mtsReturn: number
-  mtsAmt: number
-  totalPayable: number
-  cashAmt: number
-  shortOver: number
-  discount: number
-  accounts: number
-  chequeAmt: number
-  grandTotal: number
-}
+type DslPrintJob =
+  | { kind: 'customer'; data: CustomerTxPrintSheetData }
+  | { kind: 'route'; data: RouteSummaryPrintSheetData }
+  | { kind: 'movement'; movement: FullGoodsMovement; mode: 'fulls' | 'empties' }
 
 function PrintIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M7 8V4.8c0-.4.3-.8.8-.8h8.4c.4 0 .8.4.8.8V8"
         stroke="currentColor"
@@ -86,213 +111,171 @@ function PrintIcon() {
   )
 }
 
-function SearchIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M16.2 16.2 20 20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  )
+function normalizeName(value: string | null | undefined) {
+  return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-function formatGridDate(isoDate: string) {
-  const [year, month, day] = isoDate.split('-').map(Number)
-  if (!year || !month || !day) return isoDate || '—'
-  return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`
-}
+function matchesCompanyMovement(
+  movement: FullGoodsMovement,
+  company: CustomerTransactionCompany,
+  mode: 'fulls' | 'empties',
+) {
+  const category = normalizeName(movement.category_name)
+  const brand = normalizeName(movement.brand_name)
+  const haystack = `${category} ${brand}`
+  const isEmptiesCategory =
+    category === 'empties' ||
+    category.includes('mts') ||
+    brand.includes('mts') ||
+    haystack.includes('empties')
 
-function formatLongDate(isoDate: string) {
-  const [year, month, day] = isoDate.split('-').map(Number)
-  if (!year || !month || !day) return isoDate || '—'
-  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
-function formatIsoFromTimestamp(iso: string) {
-  const match = /^(\d{4}-\d{2}-\d{2})/.exec(iso)
-  if (match) return match[1]
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return toIsoDateInput()
-  return toIsoDateInput(date)
-}
-
-function formatQty(value: number) {
-  if (!Number.isFinite(value)) return '0.0'
-  return value.toLocaleString('en-US', {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  })
-}
-
-function formatMoney(value: number) {
-  if (!Number.isFinite(value)) return '0.00'
-  return value.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-}
-
-/** Short/Over print style: negatives in parentheses. */
-function formatShortOver(value: number) {
-  if (!Number.isFinite(value) || value === 0) return formatMoney(0)
-  if (value < 0) return `(${formatMoney(Math.abs(value))})`
-  return formatMoney(value)
-}
-
-function sumSectionQty(items: Array<{ section: string; quantity: number }>, section: string) {
-  return items.reduce((sum, item) => {
-    if (item.section !== section) return sum
-    return sum + (Number(item.quantity) || 0)
-  }, 0)
-}
-
-function sumCustomerDiscount(items: CustomerTxItemRecord[]) {
-  return items.reduce((sum, item) => {
-    if (item.section !== 'fulls') return sum
-    const qty = Number(item.quantity) || 0
-    const discount = Number(item.discount) || 0
-    return sum + discount * qty
-  }, 0)
-}
-
-function customerPaymentSplit(transaction: CustomerTxRecord) {
-  const payment = Number(transaction.payment_amount) || 0
-  const isCheque = Boolean(transaction.cash_cheque_no?.trim())
-  return {
-    cashAmt: isCheque ? 0 : payment,
-    chequeAmt: isCheque ? payment : 0,
+  if (mode === 'fulls') {
+    if (isEmptiesCategory) return false
+  } else if (!isEmptiesCategory) {
+    return false
   }
+
+  if (company === 'Pepsi') {
+    if (mode === 'fulls') {
+      return (
+        category === 'pcppi' ||
+        category === 'pc' ||
+        category.includes('pepsi') ||
+        category.startsWith('pcppi ')
+      )
+    }
+    return haystack.includes('pepsi')
+  }
+  if (company === 'SMC') return haystack.includes('smc')
+  return haystack.includes('magnolia') || haystack.includes('magnoia')
 }
 
-function DslDayReportPrintSheet({
-  company,
-  branch,
-  dateIso,
-  rows,
-  totals,
+function movementCases(movement: FullGoodsMovement) {
+  return (movement.items ?? []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+}
+
+function DslMovementPrintSheet({
+  movement,
+  mode,
   active,
 }: {
-  company: CustomerTransactionCompany
-  branch: UserBranch
-  dateIso: string
-  rows: DslLiquidationRow[]
-  totals: ColumnTotals
+  movement: FullGoodsMovement
+  mode: 'fulls' | 'empties'
   active: boolean
 }) {
+  const goodsLabel = mode === 'empties' ? 'Empties' : 'Full Goods'
+  const titleName = (
+    mode === 'empties'
+      ? movement.brand_name || movement.category_name || goodsLabel
+      : movement.category_name || goodsLabel
+  ).trim()
+  const items = (movement.items ?? []).filter((item) => Number(item.quantity) !== 0)
+  const total = movementCases(movement)
+
   return (
-    <div className={`dsl-day-print${active ? ' is-active' : ''}`} aria-hidden={!active}>
-      <header className="dsl-day-print__header">
-        <p className="dsl-day-print__org">The CMJ Corporation</p>
-        <h1>{company === 'Pepsi' ? 'PEPSI' : company.toUpperCase()}</h1>
-        <h2>Daily Sales Liquidation ({branch})</h2>
-        <p className="dsl-day-print__date">{formatLongDate(dateIso)}</p>
+    <div
+      className={`fulls-print-sheet${active ? '' : ''}`}
+      aria-hidden={!active}
+    >
+      <header className="fulls-print-sheet__header">
+        <p className="fulls-print-sheet__company">The CMJ Corporation</p>
+        <p className="fulls-print-sheet__branch">CMJ {movement.branch || 'Nabunturan'}</p>
+        <p
+          className={
+            movement.movement_type === 'in'
+              ? 'fulls-print-sheet__title is-in'
+              : 'fulls-print-sheet__title is-out'
+          }
+        >
+          {titleName} {goodsLabel} {movement.movement_type === 'in' ? 'In' : 'Out'}
+        </p>
       </header>
 
-      <table className="dsl-day-print__table">
-        <thead>
-          <tr>
-            <th>Sales No</th>
-            <th>Truck no / Customer</th>
-            <th>No. of Case (Sales)</th>
-            <th>Sales Amount</th>
-            <th>No of Case (Mts ret)</th>
-            <th>Mts Amount</th>
-            <th>Total Payables</th>
-            <th>Cash</th>
-            <th>Short/ Over</th>
-            <th>Discount</th>
-            <th>Account</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <td className="is-num">{row.salesNo}</td>
-              <td className="is-name">{row.truckCustomer}</td>
-              <td className="is-num">{formatQty(row.cases)}</td>
-              <td className="is-num">{formatMoney(row.salesAmt)}</td>
-              <td className="is-num">{formatQty(row.mtsReturn)}</td>
-              <td className="is-num">{formatMoney(row.mtsAmt)}</td>
-              <td className="is-num">{formatMoney(row.totalPayable)}</td>
-              <td className="is-num">{formatMoney(row.cashAmt)}</td>
-              <td className={`is-num${row.shortOver < 0 ? ' is-short' : ''}`}>
-                {formatShortOver(row.shortOver)}
-              </td>
-              <td className="is-num">{row.discount ? formatMoney(row.discount) : ''}</td>
-              <td className="is-num">{formatMoney(row.accounts)}</td>
-            </tr>
-          ))}
-          <tr className="dsl-day-print__total-row">
-            <td colSpan={2} className="is-total-label">
-              Total :
-            </td>
-            <td className="is-num">{formatQty(totals.cases)}</td>
-            <td className="is-num">{formatMoney(totals.salesAmt)}</td>
-            <td className="is-num">{formatQty(totals.mtsReturn)}</td>
-            <td className="is-num">{formatMoney(totals.mtsAmt)}</td>
-            <td className="is-num">{formatMoney(totals.totalPayable)}</td>
-            <td className="is-num">{formatMoney(totals.cashAmt)}</td>
-            <td className={`is-num${totals.shortOver < 0 ? ' is-short-total' : ''}`}>
-              {formatShortOver(totals.shortOver)}
-            </td>
-            <td className="is-num">{formatMoney(totals.discount)}</td>
-            <td className="is-num">{formatMoney(totals.accounts)}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div className="fulls-print-sheet__body">
+        <dl className="fulls-print-meta">
+          <div className="fulls-print-meta__row">
+            <dt>Date</dt>
+            <dd>{movement.movement_date}</dd>
+          </div>
+          <div className="fulls-print-meta__row">
+            <dt>Plate no.</dt>
+            <dd>{movement.truck_number || '—'}</dd>
+          </div>
+          <div className="fulls-print-meta__row">
+            <dt>Load no.</dt>
+            <dd>{movement.load_number || '—'}</dd>
+          </div>
+          <div className="fulls-print-meta__row">
+            <dt>Location</dt>
+            <dd>{movement.location || '—'}</dd>
+          </div>
+        </dl>
 
-      <div className="dsl-day-print__summary">
-        <p className="dsl-day-print__summary-title">Liquidation for:</p>
-        <p>
-          Cash Amount = <strong>{formatMoney(totals.cashAmt)}</strong>
-        </p>
-        <p>
-          Cheque Amount= <strong>{formatMoney(totals.chequeAmt)}</strong>
-        </p>
-        <hr />
-        <p className="dsl-day-print__grand">
-          <strong>{formatMoney(totals.grandTotal)}</strong>
-        </p>
+        <div className="fulls-print-items-wrap">
+          <table className="fulls-print-items">
+            <thead>
+              <tr>
+                <th>{mode === 'empties' ? 'Empties' : 'Fulls'}</th>
+                <th>No. of cases</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={2}>No items</td>
+                </tr>
+              ) : (
+                items.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.product_name}</td>
+                    <td>{item.quantity}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+          <div className="fulls-print-items-total">
+            <span>Total</span>
+            <strong>{total}</strong>
+          </div>
+        </div>
       </div>
 
-      <div className="dsl-day-print__signs">
-        <p>
-          Prepared by: <strong>{branch}</strong>
-        </p>
-        <p>
-          Checked by: <span className="dsl-day-print__line" />
-        </p>
-        <p>
-          Received by: <span className="dsl-day-print__line" />
-        </p>
+      <div className="fulls-print-sheet__end" aria-hidden="true">
+        <span className="fulls-print-sheet__end-line" />
+        <span className="fulls-print-sheet__end-label">Nothing follows</span>
+        <span className="fulls-print-sheet__end-line" />
       </div>
     </div>
   )
 }
 
-type DslPrintablesPanelProps = {
-  branch?: UserBranch | null
-  company?: CustomerTransactionCompany | null
-  onClose?: () => void
+function formatDisplayDate(isoDate: string) {
+  const [year, month, day] = isoDate.split('-').map(Number)
+  if (!year || !month || !day) return isoDate
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
 }
 
-export function DslPrintablesPanel({
-  branch = 'Nabunturan',
-  company = null,
-  onClose,
-}: DslPrintablesPanelProps) {
+type DslPrintablesPanelProps = {
+  branch?: UserBranch | null
+}
+
+export function DslPrintablesPanel({ branch = 'Nabunturan' }: DslPrintablesPanelProps) {
   const activeBranch = branch ?? 'Nabunturan'
-  const selectedCompany = company ?? 'Pepsi'
-  const [draftDate, setDraftDate] = useState(toIsoDateInput())
-  const [appliedDate, setAppliedDate] = useState(toIsoDateInput())
-  const [customerRecords, setCustomerRecords] = useState<CustomerDayRecord[]>([])
+  const [selectedCompany, setSelectedCompany] = useState<CustomerTransactionCompany>('Pepsi')
+  const [filterDate, setFilterDate] = useState(toIsoDateInput())
+  const [customerRecords, setCustomerRecords] = useState<CustomerTxRecord[]>([])
   const [routeRecords, setRouteRecords] = useState<RouteDayRecord[]>([])
+  const [movements, setMovements] = useState<FullGoodsMovement[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [printingId, setPrintingId] = useState<string | null>(null)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [printJobs, setPrintJobs] = useState<DslPrintJob[]>([])
   const [printing, setPrinting] = useState(false)
 
   useEffect(() => {
@@ -301,20 +284,21 @@ export function DslPrintablesPanel({
     async function load() {
       setLoading(true)
       setError(null)
-      const [customerResult, routeResult] = await Promise.all([
-        listCustomerTransactionsWithItemsInRange(
-          activeBranch,
-          appliedDate,
-          appliedDate,
-          selectedCompany,
-        ),
-        listRouteSummariesByDate(activeBranch, appliedDate, selectedCompany),
+      const [customerResult, routeResult, movementsResult] = await Promise.all([
+        listCustomerTransactionsByDate(activeBranch, filterDate, selectedCompany),
+        listRouteSummariesByDate(activeBranch, filterDate, selectedCompany),
+        listFullGoodsMovements(activeBranch),
       ])
       if (cancelled) return
 
       setCustomerRecords(customerResult.data)
       setRouteRecords(routeResult.data)
-      setError(customerResult.error ?? routeResult.error)
+      setMovements(
+        (movementsResult.data ?? []).filter(
+          (row) => (row.branch || 'Nabunturan') === activeBranch && row.movement_date === filterDate,
+        ),
+      )
+      setError(customerResult.error ?? routeResult.error ?? movementsResult.error)
       setLoading(false)
     }
 
@@ -322,13 +306,15 @@ export function DslPrintablesPanel({
     return () => {
       cancelled = true
     }
-  }, [activeBranch, appliedDate, selectedCompany])
+  }, [activeBranch, filterDate, selectedCompany])
 
   useEffect(() => {
     if (!printing) return
     const timer = window.setTimeout(() => window.print(), 150)
     function onAfterPrint() {
       setPrinting(false)
+      setPrintJobs([])
+      setPrintingId(null)
     }
     window.addEventListener('afterprint', onAfterPrint)
     return () => {
@@ -337,68 +323,113 @@ export function DslPrintablesPanel({
     }
   }, [printing])
 
-  const rows = useMemo((): DslLiquidationRow[] => {
-    const next: DslLiquidationRow[] = []
+  const fullsDailyIn = useMemo(
+    () =>
+      movements.filter(
+        (row) =>
+          row.movement_type === 'in' && matchesCompanyMovement(row, selectedCompany, 'fulls'),
+      ),
+    [movements, selectedCompany],
+  )
 
-    for (const { transaction, items } of customerRecords) {
-      const payment = Number(transaction.payment_amount) || 0
-      const payable = Number(transaction.payables_total) || 0
-      const { cashAmt, chequeAmt } = customerPaymentSplit(transaction)
-      const plate = formatCustomerTxPlateDisplay(transaction.truck_no, transaction.plate_no)
-      const name = transaction.customer_name.trim() || '—'
+  const emptiesDailyIn = useMemo(
+    () =>
+      movements.filter(
+        (row) =>
+          row.movement_type === 'in' && matchesCompanyMovement(row, selectedCompany, 'empties'),
+      ),
+    [movements, selectedCompany],
+  )
+
+  const emptiesDailyOut = useMemo(
+    () =>
+      movements.filter(
+        (row) =>
+          row.movement_type === 'out' && matchesCompanyMovement(row, selectedCompany, 'empties'),
+      ),
+    [movements, selectedCompany],
+  )
+
+  const rows = useMemo((): DslListRow[] => {
+    const next: DslListRow[] = []
+
+    for (const customer of customerRecords) {
       next.push({
-        key: `customer-${transaction.id}`,
+        key: `customer-${customer.id}`,
         source: 'customer',
-        dateLabel: formatGridDate(
-          formatIsoFromTimestamp(transaction.transaction_at || transaction.created_at),
-        ),
-        salesNo: transaction.sales_no || '—',
-        truckCustomer: plate && plate !== '—' ? `${name} (${plate})` : name,
-        cases: sumSectionQty(items, 'fulls'),
-        salesAmt: Number(transaction.orders_total) || 0,
-        mtsReturn: sumSectionQty(items, 'empties'),
-        mtsAmt: Number(transaction.empties_total) || 0,
-        totalPayable: payable,
-        cashAmt,
-        chequeAmt,
-        shortOver: payment - payable,
-        discount: sumCustomerDiscount(items),
-        accounts: Math.max(0, payable - payment),
+        sourceLabel: 'Customer TX',
+        refNo: customer.sales_no || '—',
+        detail: customer.customer_name || '—',
+        meta: formatCustomerTxPlateDisplay(customer.truck_no, customer.plate_no),
+        amountLabel: formatLedgerMoney(Number(customer.payables_total) || 0),
+        customer,
       })
     }
 
     for (const route of routeRecords) {
-      const { summary, items } = route
-      const companyItems = items.filter(
-        (item) => !item.company || item.company === selectedCompany,
-      )
-      const cashAmt = Number(summary.cash_remittance) || 0
-      const payable = Number(summary.sub_total) || 0
       next.push({
-        key: `route-${summary.id}`,
+        key: `route-${route.summary.id}`,
         source: 'route',
-        dateLabel: formatGridDate(summary.summary_date || appliedDate),
-        salesNo: salesNoForCompany(summary, selectedCompany) || '—',
-        truckCustomer: summary.route_area_name.trim() || summary.plate_no || '—',
-        cases: sumSectionQty(companyItems, 'fulls'),
-        salesAmt: Number(summary.total_sales) || 0,
-        mtsReturn: sumSectionQty(companyItems, 'empties'),
-        mtsAmt: Number(summary.ref_empties) || 0,
-        totalPayable: payable,
-        cashAmt,
-        chequeAmt: 0,
-        shortOver: Number(summary.short_over) || 0,
-        discount: Number(summary.discount) || 0,
-        accounts: Number(summary.account) || 0,
+        sourceLabel: 'Route TX',
+        refNo: salesNoForCompany(route.summary, selectedCompany) || '—',
+        detail: route.summary.route_area_name || '—',
+        meta: route.summary.plate_no || '—',
+        amountLabel: formatRouteMoney(Number(route.summary.total_sales) || 0),
+        route,
       })
     }
 
-    return next.sort((a, b) => {
-      const salesCmp = a.salesNo.localeCompare(b.salesNo, undefined, { numeric: true })
-      if (salesCmp !== 0) return salesCmp
-      return a.truckCustomer.localeCompare(b.truckCustomer)
-    })
-  }, [customerRecords, routeRecords, selectedCompany, appliedDate])
+    for (const movement of fullsDailyIn) {
+      next.push({
+        key: `fulls-in-${movement.id}`,
+        source: 'fullsDailyIn',
+        sourceLabel: 'Fulls Daily In',
+        refNo: movement.load_number || '—',
+        detail: movement.location || movement.category_name || '—',
+        meta: movement.truck_number || '—',
+        amountLabel: `${movementCases(movement)} cs`,
+        movement,
+        movementMode: 'fulls',
+      })
+    }
+
+    for (const movement of emptiesDailyIn) {
+      next.push({
+        key: `empties-in-${movement.id}`,
+        source: 'emptiesDailyIn',
+        sourceLabel: 'Empties Daily In',
+        refNo: movement.load_number || '—',
+        detail: movement.location || movement.brand_name || movement.category_name || '—',
+        meta: movement.truck_number || '—',
+        amountLabel: `${movementCases(movement)} cs`,
+        movement,
+        movementMode: 'empties',
+      })
+    }
+
+    for (const movement of emptiesDailyOut) {
+      next.push({
+        key: `empties-out-${movement.id}`,
+        source: 'emptiesDailyOut',
+        sourceLabel: 'Empties Daily Out',
+        refNo: movement.load_number || '—',
+        detail: movement.location || movement.brand_name || movement.category_name || '—',
+        meta: movement.truck_number || '—',
+        amountLabel: `${movementCases(movement)} cs`,
+        movement,
+        movementMode: 'empties',
+      })
+    }
+
+    return next
+  }, [
+    customerRecords,
+    routeRecords,
+    fullsDailyIn,
+    emptiesDailyIn,
+    emptiesDailyOut,
+    selectedCompany,
+  ])
 
   useEffect(() => {
     setSelectedKey((prev) =>
@@ -406,206 +437,325 @@ export function DslPrintablesPanel({
     )
   }, [rows])
 
-  const totals = useMemo((): ColumnTotals => {
-    const next: ColumnTotals = {
-      cases: 0,
-      salesAmt: 0,
-      mtsReturn: 0,
-      mtsAmt: 0,
-      totalPayable: 0,
-      cashAmt: 0,
-      shortOver: 0,
-      discount: 0,
-      accounts: 0,
-      chequeAmt: 0,
-      grandTotal: 0,
-    }
-    for (const row of rows) {
-      next.cases += row.cases
-      next.salesAmt += row.salesAmt
-      next.mtsReturn += row.mtsReturn
-      next.mtsAmt += row.mtsAmt
-      next.totalPayable += row.totalPayable
-      next.cashAmt += row.cashAmt
-      next.shortOver += row.shortOver
-      next.discount += row.discount
-      next.accounts += row.accounts
-      next.chequeAmt += row.chequeAmt
-    }
-    next.grandTotal = next.cashAmt + next.chequeAmt
-    return next
-  }, [rows])
+  const counts = useMemo(
+    () => ({
+      customer: customerRecords.length,
+      route: routeRecords.length,
+      fullsDailyIn: fullsDailyIn.length,
+      emptiesDailyIn: emptiesDailyIn.length,
+      emptiesDailyOut: emptiesDailyOut.length,
+    }),
+    [
+      customerRecords.length,
+      routeRecords.length,
+      fullsDailyIn.length,
+      emptiesDailyIn.length,
+      emptiesDailyOut.length,
+    ],
+  )
 
-  function handleSearch() {
-    setAppliedDate(draftDate || toIsoDateInput())
+  async function buildCustomerJob(record: CustomerTxRecord) {
+    const detail = await getCustomerTransactionDetail(record.id)
+    if (detail.error || !detail.data) {
+      return { job: null as DslPrintJob | null, error: detail.error }
+    }
+    return {
+      job: {
+        kind: 'customer' as const,
+        data: buildCustomerTxPrintSheetData(detail.data.transaction, detail.data.items),
+      },
+      error: null as string | null,
+    }
   }
 
-  function handlePrint() {
-    if (printing || loading || rows.length === 0) return
+  function buildRouteJob(record: RouteDayRecord): DslPrintJob {
+    return {
+      kind: 'route',
+      data: buildRouteSummaryPrintSheetData(record.summary, record.items),
+    }
+  }
+
+  function buildMovementJob(
+    movement: FullGoodsMovement,
+    mode: 'fulls' | 'empties',
+  ): DslPrintJob {
+    return { kind: 'movement', movement, mode }
+  }
+
+  async function printRow(row: DslListRow) {
+    if (printing || printingId) return
+    setPrintingId(row.key)
+    setError(null)
+
+    if (row.source === 'customer') {
+      const result = await buildCustomerJob(row.customer)
+      setPrintingId(null)
+      if (result.error || !result.job) {
+        setError(result.error ?? 'Failed to load customer transaction for printing.')
+        return
+      }
+      setPrintJobs([result.job])
+      setPrinting(true)
+      return
+    }
+
+    if (row.source === 'route') {
+      setPrintingId(null)
+      setPrintJobs([buildRouteJob(row.route)])
+      setPrinting(true)
+      return
+    }
+
+    setPrintingId(null)
+    setPrintJobs([buildMovementJob(row.movement, row.movementMode)])
     setPrinting(true)
   }
 
+  async function printAll() {
+    if (printing || printingId || rows.length === 0) return
+    setPrintingId('all')
+    setError(null)
+    const jobs: DslPrintJob[] = []
+
+    for (const customer of customerRecords) {
+      const result = await buildCustomerJob(customer)
+      if (result.error || !result.job) {
+        setPrintingId(null)
+        setError(result.error ?? `Failed to load sales ${customer.sales_no} for printing.`)
+        return
+      }
+      jobs.push(result.job)
+    }
+    for (const route of routeRecords) {
+      jobs.push(buildRouteJob(route))
+    }
+    for (const movement of fullsDailyIn) {
+      jobs.push(buildMovementJob(movement, 'fulls'))
+    }
+    for (const movement of emptiesDailyIn) {
+      jobs.push(buildMovementJob(movement, 'empties'))
+    }
+    for (const movement of emptiesDailyOut) {
+      jobs.push(buildMovementJob(movement, 'empties'))
+    }
+
+    setPrintingId(null)
+    setPrintJobs(jobs)
+    setPrinting(true)
+  }
+
+  const companyLabel =
+    PRINTABLE_COMPANIES.find((entry) => entry.company === selectedCompany)?.label ??
+    selectedCompany
+
   return (
     <>
-      <section className="dsl-report no-print" aria-label="Daily Sales Liquidation">
-        <div className="dsl-report__window">
-          <header className="dsl-report__titlebar">
-            <div>
-              <h2>Daily Sales Liquidation</h2>
-              <p>
-                {activeBranch} · {selectedCompany}
-              </p>
-            </div>
-            {onClose ? (
-              <button type="button" className="dsl-report__close" onClick={onClose} aria-label="Close">
-                ×
-              </button>
-            ) : null}
-          </header>
+      <section
+        className="printables-panel fulls-printables route-printables dsl-printables"
+        aria-label="DSL Printables"
+      >
+        <header className="route-printables__titlebar no-print">
+          <h1>DSL Printables</h1>
+        </header>
 
-          <div className="dsl-report__toolbar">
-            <label className="dsl-report__date">
-              <span>Date</span>
-              <input
-                type="date"
-                value={draftDate}
-                onChange={(event) => setDraftDate(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    handleSearch()
-                  }
-                }}
-              />
-            </label>
-
-            <button type="button" className="dsl-report__btn" onClick={handleSearch} disabled={loading}>
-              <SearchIcon />
-              Search
-            </button>
-
-            <div className="dsl-report__toolbar-spacer" />
-
-            <button
-              type="button"
-              className="dsl-report__btn dsl-report__btn--print"
-              disabled={loading || rows.length === 0 || printing}
-              onClick={handlePrint}
+        <div className="route-printables__toolbar no-print">
+          <fieldset className="route-printables__companies">
+            <legend className="visually-hidden">Company</legend>
+            <div
+              className="route-printables__companies-row"
+              role="radiogroup"
+              aria-label="Company"
             >
-              <PrintIcon />
-              Print
-            </button>
-          </div>
-
-          {error ? <p className="dsl-report__error">{error}</p> : null}
-
-          <div className="dsl-report__board">
-            {loading ? <p className="dsl-report__empty">Loading liquidation…</p> : null}
-
-            {!loading && rows.length === 0 ? (
-              <div className="dsl-report__empty-card">
-                <p className="dsl-report__empty-title">No Data</p>
-                <p>
-                  No {selectedCompany} customer or route sales for {formatGridDate(appliedDate)} on{' '}
-                  {activeBranch}.
-                </p>
-              </div>
-            ) : null}
-
-            {!loading && rows.length > 0 ? (
-              <div className="dsl-report__table-wrap">
-                <table className="dsl-report__table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Sales no</th>
-                      <th>Truck no/Customer name</th>
-                      <th>No. of case</th>
-                      <th>Sales Amt</th>
-                      <th>Mts return</th>
-                      <th>Mts Amt</th>
-                      <th>Total Payable(s)</th>
-                      <th>Cash Amt</th>
-                      <th>Short/Over</th>
-                      <th>Discount</th>
-                      <th>Accounts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row) => {
-                      const selected = row.key === selectedKey
-                      return (
-                        <tr
-                          key={row.key}
-                          className={selected ? 'is-selected' : undefined}
-                          tabIndex={0}
-                          onClick={() => setSelectedKey(row.key)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault()
-                              setSelectedKey(row.key)
-                            }
-                          }}
-                        >
-                          <td>{row.dateLabel}</td>
-                          <td>{row.salesNo}</td>
-                          <td className="is-name">{row.truckCustomer}</td>
-                          <td className="is-num">{formatQty(row.cases)}</td>
-                          <td className="is-num">{formatMoney(row.salesAmt)}</td>
-                          <td className="is-num">{formatQty(row.mtsReturn)}</td>
-                          <td className="is-num">{formatMoney(row.mtsAmt)}</td>
-                          <td className="is-num">{formatMoney(row.totalPayable)}</td>
-                          <td className="is-num">{formatMoney(row.cashAmt)}</td>
-                          <td
-                            className={
-                              row.shortOver < 0
-                                ? 'is-num is-short'
-                                : row.shortOver > 0
-                                  ? 'is-num is-over'
-                                  : 'is-num'
-                            }
-                          >
-                            {formatShortOver(row.shortOver)}
-                          </td>
-                          <td className="is-num">
-                            {row.discount ? formatMoney(row.discount) : ''}
-                          </td>
-                          <td className="is-num">{formatMoney(row.accounts)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-          </div>
-
-          <aside className="dsl-report__liquidation" aria-label="Liquidation for">
-            <div className="dsl-report__liquidation-tab">Liquidation for</div>
-            <div className="dsl-report__liquidation-body">
-              <p>
-                Cash amt = <strong>{formatMoney(totals.cashAmt)}</strong>
-              </p>
-              <p>
-                Cheque Amt = <strong>{formatMoney(totals.chequeAmt)}</strong>
-              </p>
-              <hr />
-              <p className="dsl-report__grand">{formatMoney(totals.grandTotal)}</p>
+              {PRINTABLE_COMPANIES.map((entry) => {
+                const checked = selectedCompany === entry.company
+                return (
+                  <label
+                    key={entry.company}
+                    className={
+                      checked
+                        ? 'route-printables__radio is-checked'
+                        : 'route-printables__radio'
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name="dsl-printables-company"
+                      checked={checked}
+                      onChange={() => setSelectedCompany(entry.company)}
+                    />
+                    <span>{entry.label}</span>
+                  </label>
+                )
+              })}
             </div>
-          </aside>
+          </fieldset>
+
+          <label className="route-printables__date">
+            <span className="visually-hidden">Date</span>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(event) => setFilterDate(event.target.value)}
+            />
+          </label>
+
+          <button
+            type="button"
+            className="fulls-printables-print-btn fulls-printables-print-all"
+            disabled={loading || rows.length === 0 || Boolean(printingId) || printing}
+            onClick={() => void printAll()}
+          >
+            <PrintIcon />
+            Print all
+          </button>
+        </div>
+
+        <div className="dsl-printables__summary no-print" aria-label="Day source counts">
+          <span>Customer TX {counts.customer}</span>
+          <span>Route TX {counts.route}</span>
+          <span>Fulls Daily In {counts.fullsDailyIn}</span>
+          <span>Empties Daily In {counts.emptiesDailyIn}</span>
+          <span>Empties Daily Out {counts.emptiesDailyOut}</span>
+        </div>
+
+        {error ? <p className="catalog-error no-print">{error}</p> : null}
+
+        <div className="route-printables__board no-print">
+          {loading ? <p className="catalog-empty">Loading day transactions…</p> : null}
+
+          {!loading && rows.length === 0 ? (
+            <div className="route-printables__empty">
+              <p className="route-printables__empty-title">No Data</p>
+              <p>
+                No {companyLabel} customer, route, or daily goods transactions for{' '}
+                {formatDisplayDate(filterDate)} on {activeBranch}.
+              </p>
+            </div>
+          ) : null}
+
+          {!loading && rows.length > 0 ? (
+            <div className="route-printables__table-wrap">
+              <table className="route-printables__table dsl-printables__table">
+                <thead>
+                  <tr>
+                    <th>Source</th>
+                    <th>Ref / Sales No.</th>
+                    <th>Detail</th>
+                    <th>Plate / Truck</th>
+                    <th>Amount</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const busy = printingId === row.key || printingId === 'all'
+                    const selected = row.key === selectedKey
+                    return (
+                      <tr
+                        key={row.key}
+                        className={selected ? 'is-selected' : undefined}
+                        tabIndex={0}
+                        onClick={() => setSelectedKey(row.key)}
+                        onDoubleClick={() => void printRow(row)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setSelectedKey(row.key)
+                          }
+                        }}
+                      >
+                        <td>
+                          <span
+                            className={`dsl-printables__source dsl-printables__source--${row.source}`}
+                          >
+                            {row.sourceLabel}
+                          </span>
+                        </td>
+                        <td>{row.refNo}</td>
+                        <td>{row.detail}</td>
+                        <td>{row.meta}</td>
+                        <td className="is-money">{row.amountLabel}</td>
+                        <td className="is-actions">
+                          <button
+                            type="button"
+                            className="fulls-printables-print-btn"
+                            disabled={busy || printing}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void printRow(row)
+                            }}
+                          >
+                            <PrintIcon />
+                            {busy ? '…' : 'Print'}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </div>
       </section>
 
-      <div className="dsl-day-print-root print-only" aria-hidden={!printing}>
-        <DslDayReportPrintSheet
-          company={selectedCompany}
-          branch={activeBranch}
-          dateIso={appliedDate}
-          rows={rows}
-          totals={totals}
-          active={printing}
-        />
-      </div>
+      {printJobs.length > 0 ? (
+        <div className="dsl-printables-batch print-only" aria-hidden={!printing}>
+          {printJobs.map((job, index) => {
+            const followed = index < printJobs.length - 1
+            if (job.kind === 'customer') {
+              return (
+                <div
+                  key={`customer-${job.data.salesNo}-${index}`}
+                  className={
+                    followed
+                      ? 'ctx-printables-batch__item ctx-printables-batch__item--followed'
+                      : 'ctx-printables-batch__item'
+                  }
+                >
+                  <CustomerTransactionPrintSheet
+                    data={job.data}
+                    active={printing}
+                    showNothingFollows
+                    layout="dsl"
+                  />
+                </div>
+              )
+            }
+            if (job.kind === 'route') {
+              return (
+                <div
+                  key={`route-${job.data.salesNo}-${job.data.routeAreaName}-${index}`}
+                  className={
+                    followed
+                      ? 'rsu-printables-batch__item rsu-printables-batch__item--followed'
+                      : 'rsu-printables-batch__item'
+                  }
+                >
+                  <RouteSummaryPrintSheet
+                    data={job.data}
+                    active={printing}
+                    variant="liquidation"
+                    layout="dsl"
+                  />
+                </div>
+              )
+            }
+            return (
+              <div
+                key={`movement-${job.movement.id}-${index}`}
+                className={followed ? 'fulls-print-sheet--followed-wrap' : undefined}
+              >
+                <DslMovementPrintSheet
+                  movement={job.movement}
+                  mode={job.mode}
+                  active={printing}
+                />
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
     </>
   )
 }

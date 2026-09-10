@@ -79,6 +79,7 @@ export type CustomerTxSaveInput = {
   qtys: Record<string, string>
   discountsByProductId?: Record<string, string>
   paymentAmount?: string
+  incentivesAmount?: string
   cashChequeNo?: string
   createdBy?: string
 }
@@ -148,6 +149,15 @@ export async function saveCustomerTransaction(input: CustomerTxSaveInput) {
     }
   }
 
+  const incentivesRaw = (input.incentivesAmount ?? '').trim()
+  let incentivesAmount: number | null = null
+  if (incentivesRaw) {
+    incentivesAmount = Number(incentivesRaw)
+    if (!Number.isFinite(incentivesAmount) || incentivesAmount < 0) {
+      return { data: null, error: 'Enter a valid incentives amount.', missingTable: false }
+    }
+  }
+
   const allocated = await allocateNextCustomerSalesNo(input.branch, input.company)
   if (allocated.missingTable || allocated.error) {
     return { data: null, error: allocated.error, missingTable: allocated.missingTable }
@@ -170,6 +180,7 @@ export async function saveCustomerTransaction(input: CustomerTxSaveInput) {
       empties_total: ledger.emptiesTotal,
       payables_total: ledger.payablesTotal,
       payment_amount: paymentAmount,
+      incentives_amount: incentivesAmount,
       cash_cheque_no: (input.cashChequeNo ?? '').trim(),
       transaction_at: parseTransactionAt(
         input.transactionAtText || formatCustomerTxDateTime(),
@@ -231,6 +242,7 @@ export type CustomerTxRecord = {
   empties_total: number
   payables_total: number
   payment_amount: number | null
+  incentives_amount: number | null
   cash_cheque_no: string
   transaction_at: string
   created_at: string
@@ -314,7 +326,7 @@ export async function listCustomerTransactionsInRange(
   let query = supabase
     .from('customer_transactions')
     .select(
-      'id, branch, company, sales_no, customer_id, customer_name, invoice_no, truck_no, plate_no, orders_total, empties_total, payables_total, payment_amount, cash_cheque_no, transaction_at, created_at',
+      'id, branch, company, sales_no, customer_id, customer_name, invoice_no, truck_no, plate_no, orders_total, empties_total, payables_total, payment_amount, incentives_amount, cash_cheque_no, transaction_at, created_at',
     )
     .eq('branch', branch)
     .gte('transaction_at', start)
@@ -414,7 +426,7 @@ export async function getCustomerTransactionDetail(id: string) {
   const { data: header, error } = await supabase
     .from('customer_transactions')
     .select(
-      'id, branch, company, sales_no, customer_id, customer_name, invoice_no, truck_no, plate_no, orders_total, empties_total, payables_total, payment_amount, cash_cheque_no, transaction_at, created_at',
+      'id, branch, company, sales_no, customer_id, customer_name, invoice_no, truck_no, plate_no, orders_total, empties_total, payables_total, payment_amount, incentives_amount, cash_cheque_no, transaction_at, created_at',
     )
     .eq('id', id)
     .single()
@@ -479,6 +491,20 @@ export async function updateCustomerTransaction(id: string, input: CustomerTxSav
     }
   }
 
+  const incentivesRaw = (input.incentivesAmount ?? '').trim()
+  let incentivesAmount: number | null = null
+  if (incentivesRaw) {
+    incentivesAmount = Number(incentivesRaw)
+    if (!Number.isFinite(incentivesAmount) || incentivesAmount < 0) {
+      return {
+        data: null,
+        error: 'Enter a valid incentives amount.',
+        missingTable: false,
+        updated: false,
+      }
+    }
+  }
+
   const transactionAt = parseTransactionAt(
     input.transactionAtText || formatCustomerTxDateTime(),
   ).toISOString()
@@ -495,6 +521,7 @@ export async function updateCustomerTransaction(id: string, input: CustomerTxSav
       empties_total: ledger.emptiesTotal,
       payables_total: ledger.payablesTotal,
       payment_amount: paymentAmount,
+      incentives_amount: incentivesAmount,
       cash_cheque_no: (input.cashChequeNo ?? '').trim(),
       transaction_at: transactionAt,
     })

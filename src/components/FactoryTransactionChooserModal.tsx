@@ -1,25 +1,30 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { InventoryCategory } from '../lib/inventoryPreview'
-import './AddUserModal.css'
-import './InventoryChooserModal.css'
+import './SkuOptionsPopover.css'
 
 type FactoryTransactionChooserModalProps = {
   open: boolean
+  top: number
+  left: number
   onClose: () => void
   onSelect: (category: InventoryCategory) => void
-  title?: string
-  subtitle?: string
 }
 
-const OPTIONS: InventoryCategory[] = ['PCPPI', 'SMC', 'Magnolia']
+const OPTIONS: Array<{ id: InventoryCategory; label: string; className: string }> = [
+  { id: 'PCPPI', label: 'Pepsi', className: 'pepsi' },
+  { id: 'SMC', label: 'SMC', className: 'smc' },
+  { id: 'Magnolia', label: 'Magnolia', className: 'magnolia' },
+]
 
 export function FactoryTransactionChooserModal({
   open,
+  top,
+  left,
   onClose,
   onSelect,
-  title = 'Fractory Transaction',
-  subtitle = 'Choose a category',
 }: FactoryTransactionChooserModalProps) {
+  const panelRef = useRef<HTMLDivElement | null>(null)
+
   useEffect(() => {
     if (!open) return
 
@@ -27,44 +32,46 @@ export function FactoryTransactionChooserModal({
       if (event.key === 'Escape') onClose()
     }
 
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target as Node
+      if (panelRef.current?.contains(target)) return
+      onClose()
+    }
+
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('mousedown', onPointerDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('mousedown', onPointerDown)
+    }
   }, [open, onClose])
 
   if (!open) return null
 
-  return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
-      <div
-        className="modal-panel inventory-chooser"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="factory-transaction-chooser-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header className="modal-header">
-          <div>
-            <h2 id="factory-transaction-chooser-title">{title}</h2>
-            <p>{subtitle}</p>
-          </div>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
-            ×
-          </button>
-        </header>
+  const maxLeft = typeof window !== 'undefined' ? window.innerWidth - 220 : left
+  const maxTop = typeof window !== 'undefined' ? window.innerHeight - 160 : top
+  const safeLeft = Math.max(8, Math.min(left, maxLeft))
+  const safeTop = Math.max(8, Math.min(top, maxTop))
 
-        <div className="inventory-chooser__options">
-          {OPTIONS.map((category) => (
-            <button
-              key={category}
-              type="button"
-              className={`inventory-chooser__option inventory-chooser__option--${category.toLowerCase()}`}
-              onClick={() => onSelect(category)}
-            >
-              <span className="inventory-chooser__option-label">{category}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+  return (
+    <div
+      ref={panelRef}
+      className="sku-options-popover"
+      style={{ top: safeTop, left: safeLeft }}
+      role="menu"
+      aria-label="Factory Transaction options"
+    >
+      {OPTIONS.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          role="menuitem"
+          className={`sku-options-popover__item sku-options-popover__item--${option.className}`}
+          onClick={() => onSelect(option.id)}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   )
 }

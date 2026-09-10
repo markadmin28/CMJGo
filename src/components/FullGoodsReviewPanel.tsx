@@ -687,11 +687,6 @@ export function FullGoodsReviewPanel({
             </div>
           ) : null}
         </div>
-
-        <footer className="fg-review__footer">
-          CMJgo Web Application · Powered by CMJ-MIS · Developed by Mark Morales · All rights reserved
-          2026
-        </footer>
       </div>
     </section>
   )

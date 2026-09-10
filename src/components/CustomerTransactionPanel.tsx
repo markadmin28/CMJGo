@@ -121,6 +121,7 @@ export function CustomerTransactionPanel({
   const [discountsByProductId, setDiscountsByProductId] = useState<Record<string, string>>({})
   const [editingId, setEditingId] = useState<string | null>(null)
   const [paymentAmountDraft, setPaymentAmountDraft] = useState('')
+  const [incentivesAmountDraft, setIncentivesAmountDraft] = useState('')
   const [cashChequeDraft, setCashChequeDraft] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchDate, setSearchDate] = useState(toIsoDateInput())
@@ -196,6 +197,9 @@ export function CustomerTransactionPanel({
     setPaymentAmountDraft(
       transaction.payment_amount == null ? '' : String(transaction.payment_amount),
     )
+    setIncentivesAmountDraft(
+      transaction.incentives_amount == null ? '' : String(transaction.incentives_amount),
+    )
     setCashChequeDraft(transaction.cash_cheque_no ?? '')
 
     const matchedCustomer =
@@ -257,6 +261,7 @@ export function CustomerTransactionPanel({
         setPlateNo('N/A')
         setDateText(formatCustomerTxDateTime())
         setPaymentAmountDraft('')
+        setIncentivesAmountDraft('')
         setCashChequeDraft('')
         setDiscountsByProductId({})
         setError(detail.error ?? 'Failed to load saved record.')
@@ -288,6 +293,7 @@ export function CustomerTransactionPanel({
       setPlateNo('N/A')
       setDateText(formatCustomerTxDateTime())
       setPaymentAmountDraft('')
+      setIncentivesAmountDraft('')
       setCashChequeDraft('')
       setDiscountsByProductId({})
       await refreshSalesNo()
@@ -343,6 +349,7 @@ export function CustomerTransactionPanel({
   async function resetToNew() {
     setEditingId(null)
     setPaymentAmountDraft('')
+    setIncentivesAmountDraft('')
     setCashChequeDraft('')
     setInvoiceNo('')
     setTruckNo('')
@@ -516,7 +523,11 @@ export function CustomerTransactionPanel({
     setLedgerOpen(true)
   }
 
-  async function handleLedgerSave(payment: { amount: string; cashChequeNo: string }) {
+  async function handleLedgerSave(payment: {
+    amount: string
+    incentivesAmount: string
+    cashChequeNo: string
+  }) {
     setSaving(true)
     setLedgerError(null)
     setError(null)
@@ -540,6 +551,7 @@ export function CustomerTransactionPanel({
       qtys,
       discountsByProductId,
       paymentAmount: payment.amount,
+      incentivesAmount: payment.incentivesAmount,
       cashChequeNo: payment.cashChequeNo,
       createdBy: user?.id,
     }
@@ -578,6 +590,7 @@ export function CustomerTransactionPanel({
       emptiesTotal: ledgerDraft?.emptiesTotal ?? 0,
       payablesTotal: ledgerDraft?.payablesTotal ?? 0,
       paymentAmount: payment.amount,
+      incentivesAmount: payment.incentivesAmount,
       cashChequeNo: payment.cashChequeNo,
     })
 
@@ -593,6 +606,7 @@ export function CustomerTransactionPanel({
       updated,
     })
     setPaymentAmountDraft(payment.amount)
+    setIncentivesAmountDraft(payment.incentivesAmount)
     setCashChequeDraft(payment.cashChequeNo)
     await resetToNew()
   }
@@ -853,6 +867,7 @@ export function CustomerTransactionPanel({
           saving={saving}
           error={ledgerError}
           initialPaymentAmount={paymentAmountDraft}
+          initialIncentivesAmount={incentivesAmountDraft}
           initialCashChequeNo={cashChequeDraft}
           saveLabel={editingId ? 'Update' : 'Save'}
           onClose={() => {

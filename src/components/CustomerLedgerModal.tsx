@@ -27,10 +27,11 @@ export type CustomerLedgerModalProps = {
   saving?: boolean
   error?: string | null
   initialPaymentAmount?: string
+  initialIncentivesAmount?: string
   initialCashChequeNo?: string
   saveLabel?: string
   onClose: () => void
-  onSave: (payment: { amount: string; cashChequeNo: string }) => void
+  onSave: (payment: { amount: string; incentivesAmount: string; cashChequeNo: string }) => void
 }
 
 function moneyCell(value: number) {
@@ -55,28 +56,35 @@ export function CustomerLedgerModal({
   saving = false,
   error = null,
   initialPaymentAmount = '',
+  initialIncentivesAmount = '',
   initialCashChequeNo = '',
   saveLabel = 'Save',
   onClose,
   onSave,
 }: CustomerLedgerModalProps) {
   const [paymentAmount, setPaymentAmount] = useState('')
+  const [incentivesAmount, setIncentivesAmount] = useState('')
   const [cashChequeNo, setCashChequeNo] = useState('')
 
   useEffect(() => {
     if (!open) return
     setPaymentAmount(initialPaymentAmount)
+    setIncentivesAmount(initialIncentivesAmount)
     setCashChequeNo(initialCashChequeNo)
-  }, [open, initialPaymentAmount, initialCashChequeNo])
+  }, [open, initialPaymentAmount, initialIncentivesAmount, initialCashChequeNo])
 
   if (!open) return null
 
   const plateDisplay = formatCustomerTxPlateDisplay(truckNo, plateNo)
   const paymentValue = Number(paymentAmount)
+  const incentivesValue = Number(incentivesAmount)
   const hasPayment = paymentAmount.trim() !== '' && Number.isFinite(paymentValue)
-  const paymentDiff = hasPayment ? paymentValue - payablesTotal : 0
+  const hasIncentives = incentivesAmount.trim() !== '' && Number.isFinite(incentivesValue)
+  const appliedCredits = (hasPayment ? paymentValue : 0) + (hasIncentives ? incentivesValue : 0)
+  const hasCredits = hasPayment || hasIncentives
+  const paymentDiff = hasCredits ? appliedCredits - payablesTotal : 0
   const paymentBalanceLabel =
-    !hasPayment || Math.abs(paymentDiff) < 0.005
+    !hasCredits || Math.abs(paymentDiff) < 0.005
       ? null
       : paymentDiff > 0
         ? 'over'
@@ -226,6 +234,17 @@ export function CustomerLedgerModal({
               />
             </label>
             <label className="ctx-ledger-field">
+              <span>Incentives amount</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                value={incentivesAmount}
+                onChange={(event) => setIncentivesAmount(event.target.value)}
+              />
+            </label>
+            <label className="ctx-ledger-field">
               <span>Cash/Cheque no.</span>
               <input
                 type="text"
@@ -249,7 +268,13 @@ export function CustomerLedgerModal({
               type="button"
               className="ctx-ledger-save"
               disabled={saving}
-              onClick={() => onSave({ amount: paymentAmount, cashChequeNo })}
+              onClick={() =>
+                onSave({
+                  amount: paymentAmount,
+                  incentivesAmount,
+                  cashChequeNo,
+                })
+              }
             >
               {saving ? 'Saving…' : saveLabel}
             </button>

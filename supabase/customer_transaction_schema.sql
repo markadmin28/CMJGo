@@ -27,6 +27,7 @@ create table if not exists public.customer_transactions (
   empties_total numeric(14, 2) not null default 0,
   payables_total numeric(14, 2) not null default 0,
   payment_amount numeric(14, 2),
+  incentives_amount numeric(14, 2),
   cash_cheque_no text not null default '',
   transaction_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
@@ -63,6 +64,7 @@ alter table public.customer_transactions
   add column if not exists empties_total numeric(14, 2) not null default 0,
   add column if not exists payables_total numeric(14, 2) not null default 0,
   add column if not exists payment_amount numeric(14, 2),
+  add column if not exists incentives_amount numeric(14, 2),
   add column if not exists cash_cheque_no text not null default '';
 
 alter table public.customer_transaction_items

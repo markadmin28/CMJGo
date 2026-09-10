@@ -22,6 +22,7 @@ export type CustomerTxPrintSheetData = {
   emptiesTotal: number
   payablesTotal: number
   paymentAmount: string
+  incentivesAmount: string
   cashChequeNo: string
 }
 
@@ -74,6 +75,8 @@ export function buildCustomerTxPrintSheetData(
     payablesTotal: Number(transaction.payables_total) || 0,
     paymentAmount:
       transaction.payment_amount == null ? '' : String(transaction.payment_amount),
+    incentivesAmount:
+      transaction.incentives_amount == null ? '' : String(transaction.incentives_amount),
     cashChequeNo: transaction.cash_cheque_no ?? '',
   }
 }
